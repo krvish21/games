@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Drop Four</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e4f1ec;--ink:#17323a;--board:#2f3fa8;--hole:#e4f1ec;--a:#ffc233;--b:#ff4f6d;--card:#f6fbf9;--mute:#5b7a80;--w:min(94vw,420px);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10222a;--ink:#e8f6f2;--board:#3a4cc4;--hole:#10222a;--card:#1a323b;--mute:#8fb0b6}}
+:root[data-theme="dark"]{--bg:#10222a;--ink:#e8f6f2;--board:#3a4cc4;--hole:#10222a;--card:#1a323b;--mute:#8fb0b6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:12px;user-select:none;touch-action:manipulation}
+h1{font-size:28px;font-weight:800;margin:0;letter-spacing:-.02em}
+.sub{margin:-6px 0 0;color:var(--mute);font-size:14px}
+.modes{display:flex;background:var(--card);border-radius:999px;padding:4px}
+.modes button{border:0;background:none;color:var(--mute);font:inherit;font-weight:500;padding:8px 18px;border-radius:999px;cursor:pointer}
+.modes button.on{background:var(--ink);color:var(--bg)}
+.score{display:flex;gap:10px;width:var(--w)}
+.score div{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px;border-radius:14px;background:var(--card);border:2px solid transparent;font-size:22px;font-weight:800}
+.score div.turn{border-color:var(--ink)}
+.chip{width:18px;height:18px;border-radius:50%}
+.A .chip,.d.A{background:var(--a)}.B .chip,.d.B{background:var(--b)}
+#board{display:flex;gap:0;width:var(--w);height:calc(var(--w)*6/7 + 16px);background:var(--board);border-radius:20px;padding:8px}
+.col{flex:1;min-width:0;border:0;background:none;padding:0;display:grid;grid-template-rows:repeat(6,minmax(0,1fr));cursor:pointer}
+.col:disabled{cursor:default}
+.cell{position:relative;padding:5px;min-width:0;min-height:0}
+.cell::before{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--hole)}
+.d{position:absolute;inset:5px;border-radius:50%;z-index:1;display:none}
+.d.A,.d.B{display:block}
+.d.fall{animation:fall .38s cubic-bezier(.5,0,.8,.6)}
+.d.win{box-shadow:0 0 0 4px var(--bg),0 0 0 7px var(--ink)}
+@keyframes fall{from{transform:translateY(calc(var(--n)*-105%))}}
+.col:focus-visible,button:focus-visible{outline:3px solid var(--a);outline-offset:-3px}
+#msg{min-height:28px;font-size:19px;font-weight:800}
+#again{border:0;background:var(--ink);color:var(--bg);font:inherit;font-weight:800;padding:12px 28px;border-radius:999px;cursor:pointer;visibility:hidden}
+@media (prefers-reduced-motion:reduce){.d.fall{animation:none}}
+</style>
+</head>
+<body>
+<h1>Drop Four</h1>
+<p class="sub">Tap a column. Connect four in a row to win.</p>
+<div class="modes" role="group" aria-label="Game mode"><button id="m2" class="on">2 players</button><button id="m1">vs Phone</button></div>
+<div class="score"><div id="sa" class="A"><span class="chip"></span><span id="na">0</span></div><div id="sb" class="B"><span class="chip"></span><span id="nb">0</span></div></div>
+<div id="board"></div>
+<div id="msg"></div>
+<button id="again">Play again</button>
+<script>
+const R=6,C=7,Q=[];
+for(let r=0;r<R;r++)for(let c=0;c<C;c++)for(const[dr,dc]of[[0,1],[1,0],[1,1],[1,-1]]){const q=[];for(let k=0;k<4;k++){const rr=r+dr*k,cc=c+dc*k;if(rr<0||rr>=R||cc<0||cc>=C)break;q.push(rr*C+cc)}if(q.length===4)Q.push(q)}
+let bd,turn,over,busy,cpu=false,start='A',score={A:0,B:0};
+const boardEl=document.getElementById('board'),msg=document.getElementById('msg'),cols=[],ds=[];
+for(let c=0;c<C;c++){const b=document.createElement('button');b.className='col';b.setAttribute('aria-label','Column '+(c+1));b.onclick=()=>tap(c);for(let r=0;r<R;r++){const cell=document.createElement('div');cell.className='cell';const d=document.createElement('div');d.className='d';cell.appendChild(d);b.appendChild(cell);ds[r*C+c]=d}boardEl.appendChild(b);cols.push(b)}
+const low=(b,c)=>{for(let r=R-1;r>=0;r--)if(!b[r*C+c])return r;return -1};
+const win=(b,p)=>Q.find(q=>q.every(i=>b[i]===p))||null;
+const nm=p=>p==='A'?(cpu?'You':'Yellow'):(cpu?'Phone':'Pink');
+function reset(){bd=Array(R*C).fill(null);over=false;busy=false;turn=start;start=start==='A'?'B':'A';document.getElementById('again').style.visibility='hidden';draw();if(cpu&&turn==='B')later()}
+function draw(w,last,dropN){ds.forEach((d,i)=>{d.className='d'+(bd[i]?' '+bd[i]:'');if(w&&w.includes(i))d.classList.add('win');if(i===last){d.classList.add('fall');d.style.setProperty('--n',dropN)}});
+ cols.forEach((b,c)=>b.disabled=over||busy||low(bd,c)<0||(cpu&&turn==='B'));
+ for(const p of['A','B'])document.getElementById('s'+p.toLowerCase()).classList.toggle('turn',!over&&turn===p);
+ document.getElementById('na').textContent=score.A;document.getElementById('nb').textContent=score.B;
+ if(!over)msg.textContent=cpu&&turn==='B'?'Phone is thinking…':nm(turn)+(cpu?' to play':' to play')}
+function tap(c){if(over||busy||(cpu&&turn==='B'))return;go(c)}
+function go(c){const r=low(bd,c);if(r<0)return;bd[r*C+c]=turn;busy=true;const w=win(bd,turn);
+ if(w){over=true;score[turn]++;draw(w,r*C+c,r+1);msg.textContent=nm(turn)+(cpu&&turn==='A'?' win!':' wins!');document.getElementById('again').style.visibility='visible';if(navigator.vibrate)navigator.vibrate(80);return}
+ if(bd.every(Boolean)){over=true;draw(null,r*C+c,r+1);msg.textContent="It's a draw";document.getElementById('again').style.visibility='visible';return}
+ turn=turn==='A'?'B':'A';draw(null,r*C+c,r+1);setTimeout(()=>{busy=false;draw();if(cpu&&turn==='B')later()},400)}
+function later(){setTimeout(ai,350)}
+function ai(){if(over)return;const ok=[...Array(C).keys()].filter(c=>low(bd,c)>=0);
+ const wins=(p,c)=>{const r=low(bd,c);bd[r*C+c]=p;const w=!!win(bd,p);bd[r*C+c]=null;return w};
+ let pick=ok.find(c=>wins('B',c));if(pick===undefined)pick=ok.find(c=>wins('A',c));
+ if(pick===undefined){let best=-1e9;for(const c of ok){const r=low(bd,c);let s=3-Math.abs(c-3)+Math.random()*1.5;
+  if(r>0){bd[r*C+c]='B';if(wins('A',c))s-=20;bd[r*C+c]=null}
+  if(r>0){bd[r*C+c]='A';bd[(r-1)*C+c]=null;bd[r*C+c]=null}
+  if(s>best){best=s;pick=c}}}
+ busy=false;go(pick)}
+function setMode(m){cpu=m;document.getElementById('m1').classList.toggle('on',m);document.getElementById('m2').classList.toggle('on',!m);score={A:0,B:0};start='A';reset()}
+document.getElementById('m1').onclick=()=>setMode(true);document.getElementById('m2').onclick=()=>setMode(false);document.getElementById('again').onclick=reset;
+reset();
+</script>
+</body>
+</html>
