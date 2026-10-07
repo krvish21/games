@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vanish Tic-Tac-Toe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8edf8;--ink:#1b2340;--cell:#f8faff;--x:#2646f5;--o:#f0508a;--mute:#6b7595;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171c33;--ink:#eef1ff;--cell:#232a4a;--x:#7d92ff;--o:#ff7fae;--mute:#99a3c8}}
+:root[data-theme="dark"]{--bg:#171c33;--ink:#eef1ff;--cell:#232a4a;--x:#7d92ff;--o:#ff7fae;--mute:#99a3c8}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:16px;user-select:none;touch-action:manipulation}
+h1{font-size:26px;font-weight:800;margin:0;letter-spacing:-.02em}
+.sub{margin:-8px 0 0;color:var(--mute);font-size:14px;text-align:center;max-width:300px}
+.modes{display:flex;background:var(--cell);border-radius:999px;padding:4px}
+.modes button{border:0;background:none;color:var(--mute);font:inherit;font-weight:500;padding:8px 18px;border-radius:999px;cursor:pointer}
+.modes button.on{background:var(--ink);color:var(--bg)}
+.score{display:flex;gap:10px;width:min(92vw,56vh,380px)}
+.score div{flex:1;text-align:center;padding:8px;border-radius:14px;background:var(--cell);font-size:14px;color:var(--mute);border:2px solid transparent}
+.score div.turn{border-color:currentColor}
+.score b{display:block;font-size:24px;color:var(--ink)}
+#sx{color:var(--x)}#so{color:var(--o)}
+#board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:10px;width:min(92vw,56vh,380px);height:min(92vw,56vh,380px)}
+.c{width:100%;height:100%;min-width:0;min-height:0;overflow:hidden;line-height:1;border:0;background:var(--cell);border-radius:18px;font:inherit;font-size:clamp(40px,16vw,76px);font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:opacity .25s,transform .15s}
+.c:active:not(:disabled){transform:scale(.94)}
+.c.X{color:var(--x)}.c.O{color:var(--o)}
+.c.old{opacity:.3}
+.c.win{background:var(--ink)}
+.c.win.X{color:#9fb0ff}.c.win.O{color:#ffb0cd}
+.c:focus-visible,button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+#msg{min-height:28px;font-size:18px;font-weight:800}
+#again{border:0;background:var(--ink);color:var(--bg);font:inherit;font-weight:800;padding:12px 28px;border-radius:999px;cursor:pointer;visibility:hidden}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<h1>Vanish Tic-Tac-Toe</h1>
+<p class="sub">Only 3 marks each. Place a 4th and your oldest one disappears.</p>
+<div class="modes" role="group" aria-label="Game mode">
+  <button id="m2" class="on">2 players</button>
+  <button id="m1">vs Phone</button>
+</div>
+<div class="score"><div id="sx">X<b id="nx">0</b></div><div id="so">O<b id="no">0</b></div></div>
+<div id="board"></div>
+<div id="msg"></div>
+<button id="again">Play again</button>
+<script>
+const L=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let board,mv,turn,over,cpu=false,start='X',score={X:0,O:0};
+const el=document.getElementById('board'),msg=document.getElementById('msg'),cells=[];
+for(let i=0;i<9;i++){const b=document.createElement('button');b.className='c';b.setAttribute('aria-label','Cell '+(i+1));b.onclick=()=>tap(i);el.appendChild(b);cells.push(b)}
+function place(bd,m,p,i){bd=bd.slice();m={X:m.X.slice(),O:m.O.slice()};m[p].push(i);bd[i]=p;if(m[p].length>3)bd[m[p].shift()]=null;return{bd,m}}
+function winner(bd){for(const l of L)if(bd[l[0]]&&bd[l[0]]===bd[l[1]]&&bd[l[0]]===bd[l[2]])return l;return null}
+function reset(){board=Array(9).fill(null);mv={X:[],O:[]};over=false;turn=start;start=start==='X'?'O':'X';msg.textContent='';document.getElementById('again').style.visibility='hidden';draw();if(cpu&&turn==='O')setTimeout(ai,450)}
+function draw(w){cells.forEach((c,i)=>{const p=board[i];c.textContent=p||'';c.className='c'+(p?' '+p:'');c.disabled=over||!!p;
+ if(p&&mv[p].length===3&&mv[p][0]===i&&!over&&p===turn)c.classList.add('old');
+ if(w&&w.includes(i))c.classList.add('win')});
+ document.getElementById('sx').classList.toggle('turn',!over&&turn==='X');
+ document.getElementById('so').classList.toggle('turn',!over&&turn==='O');
+ document.getElementById('nx').textContent=score.X;document.getElementById('no').textContent=score.O;
+ if(!over)msg.textContent=(cpu&&turn==='O')?'Phone is thinking…':turn+' to play'}
+function tap(i){if(over||board[i]||(cpu&&turn==='O'))return;go(i)}
+function go(i){const r=place(board,mv,turn,i);board=r.bd;mv=r.m;const w=winner(board);
+ if(w){over=true;score[turn]++;draw(w);msg.textContent=(cpu&&turn==='O'?'Phone':turn)+' wins!';document.getElementById('again').style.visibility='visible';if(navigator.vibrate)navigator.vibrate(80);return}
+ turn=turn==='X'?'O':'X';draw();if(cpu&&turn==='O')setTimeout(ai,550)}
+function ai(){if(over)return;const free=[...Array(9).keys()].filter(i=>!board[i]);
+ const test=(p,i)=>{const r=place(board,mv,p,i);return !!winner(r.bd)};
+ let pick=free.find(i=>test('O',i));
+ if(pick===undefined)pick=free.find(i=>test('X',i));
+ if(pick===undefined&&!board[4])pick=4;
+ if(pick===undefined)pick=free[Math.floor(Math.random()*free.length)];
+ go(pick)}
+function setMode(c){cpu=c;document.getElementById('m1').classList.toggle('on',c);document.getElementById('m2').classList.toggle('on',!c);score={X:0,O:0};start='X';reset()}
+document.getElementById('m1').onclick=()=>setMode(true);
+document.getElementById('m2').onclick=()=>setMode(false);
+document.getElementById('again').onclick=reset;
+reset();
+</script>
+</body>
+</html>
