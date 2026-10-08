@@ -5,7 +5,7 @@
 <meta name="description" content="A small collection of browser games.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#111827;--mute:#6b7280;--line:#e5e7eb;--acc:#2563eb;--tile:#f1f5f9}
+:root{--bg:#f6f7f9;--card:#fff;--ink:#111827;--mute:#6b7280;--line:#e5e7eb;--acc:#2563eb;--btn:#2563eb;--tile:#f1f5f9}
 @media (prefers-color-scheme:dark){:root{--bg:#0b1118;--card:#131c26;--ink:#f3f4f6;--mute:#9ca3af;--line:#243140;--acc:#60a5fa;--tile:#1c2836}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -18,16 +18,22 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
 header p{margin:6px 0 0;color:var(--mute);font-size:15px}
 .label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 10px}
 .list{display:flex;flex-direction:column;gap:10px}
-a.game{display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--card);border:1px solid var(--line);
-  border-radius:12px;color:inherit;text-decoration:none;transition:border-color .15s,transform .15s,box-shadow .15s}
-a.game:hover,a.game:focus-visible{border-color:var(--acc);box-shadow:0 2px 10px rgba(0,0,0,.08);outline:none}
-a.game:active{transform:scale(.99)}
+.game{display:flex;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  transition:border-color .15s,box-shadow .15s}
+.game:hover,.game:focus-within{border-color:var(--acc);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+a.main{flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:12px 14px;color:inherit;text-decoration:none;border-radius:12px}
+a.main:active{opacity:.7}
+a.main:focus-visible,a.mp:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .ico{flex:none;width:44px;height:44px;border-radius:10px;background:var(--tile);display:grid;place-items:center;font-size:24px}
 .txt{flex:1;min-width:0}
 .txt h2{margin:0;font-size:16px;font-weight:600}
 .txt p{margin:2px 0 0;font-size:13px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .go{flex:none;color:var(--mute);font-size:20px;transition:transform .15s,color .15s}
-a.game:hover .go,a.game:focus-visible .go{color:var(--acc);transform:translateX(3px)}
+a.main:hover .go{color:var(--acc);transform:translateX(3px)}
+a.mp{flex:none;margin:0 12px 0 0;padding:8px 12px;border-radius:8px;background:var(--btn);color:#fff;
+  font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+a.mp:hover{filter:brightness(1.1)}
+a.mp:active{transform:scale(.97)}
 footer{max-width:560px;width:100%;margin:28px auto 0;padding-top:16px;border-top:1px solid var(--line);color:var(--mute);font-size:13px}
 </style></head><body>
 <div class="wrap">
@@ -38,21 +44,27 @@ footer{max-width:560px;width:100%;margin:28px auto 0;padding-top:16px;border-top
 
   <p class="label">Games</p>
   <main class="list">
-    <a class="game" href="dropfour.html">
-      <div class="ico">🔴</div>
-      <div class="txt"><h2>Drop Four</h2><p>Connect four discs in a row · 2 players</p></div>
-      <span class="go" aria-hidden="true">›</span>
-    </a>
-    <a class="game" href="summit-rush.html">
-      <div class="ico">🏔️</div>
-      <div class="txt"><h2>Summit Rush</h2><p>Dice race to the top, with hurdles · 2–4 players</p></div>
-      <span class="go" aria-hidden="true">›</span>
-    </a>
-    <a class="game" href="tictactoe.html">
-      <div class="ico">⭕</div>
-      <div class="txt"><h2>Tic Tac Toe</h2><p>Three in a row wins · 2 players</p></div>
-      <span class="go" aria-hidden="true">›</span>
-    </a>
+    <div class="game">
+      <a class="main" href="dropfour.html">
+        <div class="ico">🔴</div>
+        <div class="txt"><h2>Drop Four</h2><p>Connect four discs in a row · 2 players</p></div>
+        <span class="go" aria-hidden="true">›</span>
+      </a>
+    </div>
+    <div class="game">
+      <a class="main" href="summit-rush.html">
+        <div class="ico">🏔️</div>
+        <div class="txt"><h2>Summit Rush</h2><p>Dice race to the top · 2–4 players</p></div>
+      </a>
+      <a class="mp" href="summit-rush-multiplayer.html">Multiplayer</a>
+    </div>
+    <div class="game">
+      <a class="main" href="tictactoe.html">
+        <div class="ico">⭕</div>
+        <div class="txt"><h2>Tic Tac Toe</h2><p>Three in a row wins · 2 players</p></div>
+        <span class="go" aria-hidden="true">›</span>
+      </a>
+    </div>
   </main>
 </div>
 <footer>© <script>document.write(new Date().getFullYear())</script> Game Arcade</footer>
