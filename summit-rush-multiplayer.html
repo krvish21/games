@@ -12,17 +12,21 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:440px;margin:0 auto;padding:12px}
 h1{margin:6px 0 2px;font-size:26px;text-align:center}
-.sub{text-align:center;color:var(--mute);margin:0 0 14px;font-size:14px}
+.sub{text-align:center;color:var(--mute);margin:0 0 12px;font-size:14px}
 .card{background:var(--card);border-radius:16px;padding:14px;box-shadow:0 2px 10px #0002;margin-bottom:10px}
 input{font:inherit;width:100%;padding:12px;border-radius:12px;border:2px solid var(--cell2);background:var(--bg);color:var(--ink);margin-bottom:8px}
 button{font:inherit;border:0;border-radius:12px;padding:12px 18px;background:var(--acc);color:#fff;font-weight:700;cursor:pointer}
 button.full{width:100%}button.alt{background:var(--mute)}
-button:disabled{opacity:.5}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid #f5a524}
 .row{display:flex;gap:8px}.row>*{flex:1}
 #err{color:#d9534f;min-height:1.2em;margin:6px 0 0;font-size:14px}
 .code{font-size:40px;font-weight:800;letter-spacing:6px;text-align:center;color:var(--acc)}
 ul{list-style:none;padding:0;margin:8px 0}li{display:flex;align-items:center;gap:8px;padding:4px 0}
 .dot{width:14px;height:14px;border-radius:50%;flex:none}
+#helpBtn{width:100%;margin-bottom:10px}
+#help{font-size:14px;max-height:60vh;overflow:auto;animation:pop .25s ease-out}
+#help h3{margin:10px 0 4px;font-size:15px}#help p{margin:4px 0}
 .hud{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;gap:12px;align-items:center;margin-bottom:10px}
 #dice{font-size:54px;line-height:1;width:64px;text-align:center;will-change:transform}
 #msg{flex:1;font-size:14px;min-height:40px}
@@ -36,30 +40,37 @@ ul{list-style:none;padding:0;margin:8px 0}li{display:flex;align-items:center;gap
 .c.fl{outline:2px solid #f5a524;outline-offset:-2px}
 .c.h{background:var(--bad)}.c.g{background:var(--good)}.c.w{background:var(--wild)}
 .c.rv span{animation:pop .35s ease-out}
-@keyframes pop{from{transform:scale(2.4);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes pop{from{transform:scale(2.2);opacity:0}to{transform:scale(1);opacity:1}}
 #field{position:relative}
 .tk{position:absolute;left:0;top:0;width:20px;height:20px;z-index:3;pointer-events:none;transition:transform .22s cubic-bezier(.4,0,.2,1);will-change:transform}
 .tk.nt{transition:none}
-.tk i{display:block;width:100%;height:100%;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 5px #0007;transition:scale .25s,box-shadow .25s}
+.tk i{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 5px #0007;transition:scale .25s,box-shadow .25s;font:700 10px system-ui;color:#fff;font-style:normal;text-shadow:0 1px 2px #0008}
 .tk.on i{scale:1.3;box-shadow:0 0 0 3px #fff8,0 2px 6px #0008}
 .c.hit{animation:hit .5s}
 @keyframes hit{20%{transform:translateX(-4px) rotate(-4deg)}40%{transform:translateX(4px) rotate(4deg)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
 #start{margin-top:6px;padding:8px;text-align:center;border-radius:8px;background:var(--cell);font-size:13px;color:var(--mute)}
-.leg{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;margin-top:10px}
-.leg div{background:var(--bg);padding:8px;border-radius:10px}
-details{font-size:14px;color:var(--mute)}summary{cursor:pointer;padding:4px 0}
+.seg{display:flex;gap:6px;margin:8px 0}
+.seg button{flex:1;background:var(--cell2);color:var(--ink)}.seg button.on{background:var(--acc);color:#fff}
+#hgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}
+.hc{background:var(--bg);border:2px solid transparent;border-radius:12px;padding:8px;font-size:13px;opacity:.55;user-select:none}
+.hc.can{cursor:pointer}.hc.on{opacity:1;border-color:var(--acc)}
+.hc b{display:block;font-size:14px}
+.tg{font-size:11px;border-radius:10px;padding:0 7px;margin-left:4px;color:var(--ink)}
+.tg0{background:var(--bad)}.tg1{background:var(--good)}.tg2{background:var(--wild)}
 .hide{display:none}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><div class="wrap">
 <h1>🏔️ Summit Dash</h1>
 <p class="sub">Roll the dice. Reach the peak first. Hurdles stay hidden until someone lands on them!</p>
+<button id="helpBtn" class="alt" onclick="toggleHelp()" aria-expanded="false">📖 How to play</button>
+<div id="help" class="card hide"></div>
 
 <div id="home" class="card">
-  <input id="name" placeholder="Your name" maxlength="12" autocomplete="off">
-  <button class="full" onclick="createRoom()">Create room</button>
+  <input id="name" placeholder="Your name (required)" maxlength="12" autocomplete="off" oninput="chkName()">
+  <button id="bCreate" class="full" onclick="createRoom()" disabled>Create room</button>
   <p class="sub" style="margin:12px 0">or join a friend</p>
   <input id="join" placeholder="Room code" maxlength="4" autocomplete="off">
-  <button class="full alt" onclick="joinRoom($('join').value)">Join room</button>
+  <button id="bJoin" class="full alt" onclick="joinRoom($('join').value)" disabled>Join room</button>
   <p id="err"></p>
 </div>
 
@@ -67,8 +78,22 @@ details{font-size:14px;color:var(--mute)}summary{cursor:pointer;padding:4px 0}
   <div class="code" id="rc"></div>
   <p class="sub" style="margin:0">Share the code or the invite link. 2-4 players.</p>
   <ul id="plist"></ul>
-  <div class="row"><button id="copy" class="alt" onclick="copyLink()">Copy invite link</button><button id="go" onclick="startGame()">Start race</button></div>
-  <p id="wait" class="sub hide" style="margin:10px 0 0">Waiting for the host to start…</p>
+  <div class="row"><input id="rn" maxlength="12" placeholder="Change your name"><button class="alt" onclick="rename()" style="margin-bottom:8px">Rename</button></div>
+  <div class="row"><button id="copy" class="alt" onclick="copyLink()">Copy invite link</button><button id="go" onclick="openConfig()">Set up board</button></div>
+  <p id="wait" class="sub hide" style="margin:10px 0 0">Waiting for the host…</p>
+</div>
+
+<div id="config" class="card hide">
+  <b>Board setup</b>
+  <p class="sub" id="cfgWho" style="text-align:left;margin:4px 0"></p>
+  <div class="seg" id="seg"></div>
+  <p class="sub" id="diffNote" style="text-align:left;margin:0"></p>
+  <div class="row hide" id="presets" style="margin-top:10px">
+    <button class="alt" onclick="preset('default')">Default set</button><button class="alt" onclick="preset('all')">Select all</button><button class="alt" onclick="preset('none')">Clear</button>
+  </div>
+  <div id="hgrid"></div>
+  <p class="sub" id="cfgHint" style="margin:0 0 8px"></p>
+  <button id="startBtn" class="full" onclick="startGame()">Start race</button>
 </div>
 
 <div id="game" class="hide">
@@ -80,8 +105,7 @@ details{font-size:14px;color:var(--mute)}summary{cursor:pointer;padding:4px 0}
   </div>
   <div id="chips"></div>
   <div id="field"><div id="board"></div><div id="start"></div></div>
-  <div class="card" style="margin-top:10px"><ul id="roster"></ul>
-    <details><summary>Hurdle guide</summary><div class="leg" id="leg"></div></details></div>
+  <div class="card" style="margin-top:10px"><ul id="roster"></ul></div>
   <p style="text-align:center"><button class="alt" onclick="location.reload()">Leave game</button></p>
 </div>
 </div>
@@ -95,15 +119,31 @@ const H={
  iceslide:{e:'🧊',n:'Ice slide',d:'Slide back 4 tiles',k:0},
  thinair:{e:'🌫️',n:'Thin air',d:'Next roll is halved',k:0},
  blizzard:{e:'🌨️',n:'Blizzard',d:'Next roll needs 4+ to move',k:0},
+ bear:{e:'🐻',n:'Bear attack',d:'Back 5 tiles',k:0},
+ sand:{e:'🌀',n:'Quicksand',d:'Lose your next turn',k:0},
+ storm:{e:'⛈️',n:'Storm',d:'Back 8 tiles',k:0},
+ cursed:{e:'☠️',n:'Cursed die',d:'Next roll: two dice, take the lower',k:0},
  gust:{e:'💨',n:'Gust',d:'Coin flip: forward 2 or back 2',k:2},
  swap:{e:'🔄',n:'Swap',d:'Trade places with nearest rival',k:2},
  avalanche:{e:'🏔️',n:'Avalanche',d:'Rivals up to 4 behind you slide back 2',k:2},
+ rope:{e:'🪢',n:'Rope tile',d:'Pulls the nearest player behind you forward 2',k:2},
+ boulder:{e:'🗿',n:'Boulder',d:'You shove it: nearest rival behind you goes back 3',k:2},
+ footprints:{e:'👣',n:'Footprints',d:'First to land: forward 2. Everyone after: back 1',k:2},
  hotspring:{e:'♨️',n:'Hot spring',d:'Shield: ignore your next bad hurdle',k:1},
  cablecar:{e:'🚡',n:'Cable car',d:'Ride forward 4 tiles',k:1},
  cache:{e:'🎒',n:'Supply cache',d:'Roll again right away',k:1}
 };
+const DEFAULT=['rockslide','crevasse','iceslide','thinair','blizzard','gust','swap','avalanche','hotspring','cablecar','cache'];
+const KT=['Bad','Good','Wild'];
+// w = weights for [bad, good, wild] hurdles
+const DIFF={
+ easy:{n:'Easy',count:10,w:[.3,.4,.3],adj:false,note:'About 10 hurdles. More helpful ones, and never back-to-back.'},
+ medium:{n:'Medium',count:16,w:[.45,.25,.3],adj:true,note:'About 16 hurdles. A balanced mix.'},
+ hard:{n:'Hard',count:22,w:[.65,.12,.23],adj:true,note:'About 22 hurdles. Mostly nasty, and they can cluster.'}
+};
 const $=id=>document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms)),rnd=n=>Math.random()*n|0;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sh=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
 
 /* ---------- Sound (synthesized) ---------- */
 let AC,muted=false,windG;
@@ -131,14 +171,22 @@ const SFX={
  iceslide(){tone(1500,0,.6,'sawtooth',.07,380);noise(0,.6,.14,6000,'bandpass',500)},
  thinair(){tone(200,0,.8,'sine',.18,90);tone(207,0,.8,'sine',.14,93)},
  blizzard(){noise(0,1.1,.35,300,'bandpass',2600);noise(.3,.8,.2,2200,'bandpass',300)},
+ bear(){tone(150,0,.55,'sawtooth',.25,70);tone(158,0,.55,'sawtooth',.2,66);noise(0,.4,.15,900,'bandpass',300)},
+ sand(){tone(320,0,.7,'sine',.3,70);for(let i=0;i<4;i++)tone(350+i*80,.15+i*.14,.1,'sine',.18,900+i*100)},
+ storm(){noise(0,.12,.45,7000,'highpass');noise(.12,1.1,.7,260,'lowpass',50);tone(60,.15,.9,'sawtooth',.2,30)},
+ cursed(){tone(880,0,.6,'square',.1,110);tone(932,0,.6,'square',.08,116)},
  gust(){noise(0,.7,.3,400,'bandpass',3200)},
  swap(){tone(500,0,.1,'square',.1,1000);tone(1000,.1,.14,'square',.1,500)},
  avalanche(){noise(0,1.5,.6,800,'lowpass',50);tone(55,0,1.3,'sawtooth',.25,28)},
+ rope(){tone(400,0,.3,'triangle',.2,800);noise(0,.25,.12,3000,'bandpass',1000)},
+ boulder(){noise(0,.6,.5,400,'lowpass',90);tone(80,0,.5,'sawtooth',.25,40)},
+ footprints(){for(let i=0;i<4;i++){noise(i*.14,.07,.15,1800,'bandpass',700)}},
  hotspring(){[523,659,784].forEach((f,i)=>tone(f,i*.09,.25,'sine',.14));for(let i=0;i<4;i++)tone(400+Math.random()*600,.3+i*.08,.09,'sine',.09,900)},
  cablecar(){tone(300,0,.5,'triangle',.2,900);tone(1568,.4,.5,'sine',.14)},
  cache(){tone(988,0,.08,'square',.1);tone(1319,.08,.3,'square',.1)},
  shield(){tone(700,0,.25,'sine',.15,1100)},
  stuck(){tone(130,0,.3,'square',.18,65)},
+ skip(){tone(330,0,.2,'square',.12,200);tone(250,.2,.3,'square',.12,120)},
  fall(){tone(700,0,.65,'sine',.15,120)},
  six(){[523,659,784,1047].forEach((f,i)=>tone(f,i*.08,.16,'triangle',.22))},
  turn(){tone(660,0,.08,'sine',.14);tone(880,.07,.1,'sine',.14)},
@@ -149,72 +197,100 @@ document.addEventListener('pointerdown',()=>ac(),{once:true});
 
 /* ---------- Host: networking & rules ---------- */
 let peer,conn,cmap={},me=null,isHost=false,code='';
-let T=[],R=[],P=[],turn=0,phase='lobby',winner=null,extra=false,gid=0,seq=0;
-const newP=(id,name)=>({id,name:name||'Climber',color:COLORS[P.length],pos:0,need4:false,half:false,shield:false,left:false});
-const myName=()=>($('name').value.trim()||'Climber').slice(0,12);
+let T=[],R=[],FP={},P=[],turn=0,phase='lobby',winner=null,extra=false,gid=0,seq=0;
+let CFG={sel:[...DEFAULT],diff:'medium'};
+const cfgValid=c=>c.sel.length>=3&&c.sel.some(k=>H[k].k===0);
+const cleanName=v=>(String(v||'').trim().slice(0,12))||'Climber';
+function uniqueName(v,id){let n=cleanName(v),b=n,i=2;const taken=x=>P.some(p=>p.id!==id&&p.name.toLowerCase()===x.toLowerCase());
+ while(taken(n)){n=b.slice(0,10)+' '+i;i++}return n}
+const newP=(id,name)=>({id,name:uniqueName(name,id),color:COLORS[P.length],pos:0,need4:false,half:false,shield:false,skip:false,cursed:false,left:false});
+const myName=()=>cleanName($('name').value);
 
 function bc(acts){
  seq++;
- const s={gid,phase,players:P.map(p=>({...p})),tiles:T.map((t,i)=>R[i]?t:null),turn,acts:acts||[],winner,extra,code,seq};
+ const s={gid,phase,players:P.map(p=>({...p})),tiles:T.map((t,i)=>R[i]?t:null),turn,acts:acts||[],winner,extra,code,seq,cfg:{sel:[...CFG.sel],diff:CFG.diff}};
  Object.values(cmap).forEach(c=>c.open&&c.send({t:'s',s}));
  apply(s);
 }
+function chkName(){const ok=$('name').value.trim().length>0;$('bCreate').disabled=!ok;$('bJoin').disabled=!ok}
 function createRoom(){
  ac();isHost=true;me='host';
  const ch='abcdefghjkmnpqrstuvwxyz23456789';code='';for(let i=0;i<4;i++)code+=ch[rnd(ch.length)];
- $('err').textContent='Creating room…';
+ $('err').textContent='Connecting…';$('bCreate').disabled=true;
  peer=new Peer('summitdash-'+code);
  peer.on('open',()=>{P=[newP('host',myName())];$('err').textContent='';bc()});
- peer.on('error',e=>$('err').textContent='Connection problem: '+e.type+'. Try again.');
+ peer.on('error',e=>{$('err').textContent='Connection problem: '+e.type+'. Reload and try again.'});
  peer.on('connection',c=>{c.on('data',d=>onData(c,d));c.on('close',()=>onLeave(c.peer))});
 }
 function joinRoom(c0){
  ac();c0=(c0||'').trim().toLowerCase();if(c0.length!==4){$('err').textContent='Enter the 4-character room code.';return}
- $('err').textContent='Joining…';peer=new Peer();
+ $('err').textContent='Connecting…';$('bJoin').disabled=true;peer=new Peer();
  peer.on('open',id=>{
   me=id;conn=peer.connect('summitdash-'+c0,{reliable:true});
-  conn.on('open',()=>conn.send({t:'join',name:myName()}));
-  conn.on('data',d=>{if(d.t==='s')apply(d.s);else if(d.t==='full'){$('err').textContent='That race has started or is full.';conn.close()}});
+  conn.on('open',()=>{$('err').textContent='Connected, joining…';conn.send({t:'join',name:myName()})});
+  conn.on('data',d=>{if(d.t==='s')apply(d.s);else if(d.t==='full'){$('err').textContent='That race has started or is full.';$('bJoin').disabled=false;conn.close()}});
   conn.on('close',()=>say('Disconnected','The host left the game.'));
  });
- peer.on('error',e=>$('err').textContent=e.type==='peer-unavailable'?'No room with that code.':'Connection problem: '+e.type);
+ peer.on('error',e=>{$('err').textContent=e.type==='peer-unavailable'?'No room with that code.':'Connection problem: '+e.type;$('bJoin').disabled=false});
 }
 function onData(c,d){
  if(d.t==='join'){
   if(phase!=='lobby'||P.length>=4){c.send({t:'full'});return}
-  cmap[c.peer]=c;P.push(newP(c.peer,String(d.name).slice(0,12)));bc();
+  cmap[c.peer]=c;P.push(newP(c.peer,d.name));bc();
+ }else if(d.t==='rename'&&phase==='lobby'){
+  const p=P.find(x=>x.id===c.peer);if(p){p.name=uniqueName(d.name,p.id);bc()}
  }else if(d.t==='roll'&&phase==='play'&&P[turn].id===c.peer)doRoll();
 }
 function onLeave(id){
  delete cmap[id];const i=P.findIndex(p=>p.id===id);if(i<0)return;
  if(phase==='lobby'){P.splice(i,1);P.forEach((p,j)=>p.color=COLORS[j]);bc();return}
- P[i].left=true;const alive=P.filter(p=>!p.left);
+ P[i].left=true;const alive=P.filter(p=>!p.left),A=[];
  if(phase==='play'){
   if(alive.length<2){phase='end';winner=alive[0]?alive[0].id:null;bc();return}
-  if(turn===i){extra=false;nextTurn()}
-  bc();
+  if(turn===i){extra=false;nextTurn(A)}
  }
+ bc(A);
+}
+function rename(){const v=$('rn').value.trim();if(!v)return;
+ if(isHost){P[0].name=uniqueName(v,'host');bc()}else if(conn&&conn.open)conn.send({t:'rename',name:v})}
+function openConfig(){if(P.filter(p=>!p.left).length<2)return;phase='config';bc()}
+function setDiff(d){CFG.diff=d;bc()}
+function toggleType(k){const i=CFG.sel.indexOf(k);if(i<0)CFG.sel.push(k);else CFG.sel.splice(i,1);bc()}
+function preset(n){CFG.sel=n==='default'?[...DEFAULT]:n==='all'?Object.keys(H):[];bc()}
+function buildBoard(){
+ const d=DIFF[CFG.diff],byK=[[],[],[]];CFG.sel.forEach(k=>byK[H[k].k].push(k));
+ const decks=[[],[],[]],draw=kk=>{if(!decks[kk].length)decks[kk]=sh([...byK[kk]]);return decks[kk].pop()};
+ const ws=d.w.map((w,k)=>byK[k].length?w:0),tot=ws.reduce((a,b)=>a+b,0);
+ const spots=sh(Array.from({length:50},(_,i)=>i+3).filter(x=>x%10));
+ const pick=[];
+ for(const s of spots){if(pick.length>=d.count)break;if(!d.adj&&pick.some(x=>Math.abs(x-s)===1))continue;pick.push(s)}
+ for(const s of spots){if(pick.length>=d.count)break;if(!pick.includes(s))pick.push(s)}
+ T=Array(N+1).fill(null);R=Array(N+1).fill(false);FP={};
+ pick.forEach(s=>{let r=Math.random()*tot,kk=0;for(;kk<3;kk++){if(ws[kk]&&r<ws[kk])break;r-=ws[kk]}if(kk>2)kk=ws.findIndex(w=>w>0);T[s]=draw(kk)});
 }
 function startGame(){
- const keys=Object.keys(H),picks=keys.concat(Array.from({length:7},()=>keys[rnd(keys.length)]));
- const sh=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
- sh(picks);const spots=sh(Array.from({length:50},(_,i)=>i+3).filter(x=>x%10));
- T=Array(N+1).fill(null);R=Array(N+1).fill(false);picks.forEach((h,i)=>T[spots[i]]=h);
- P.forEach(p=>Object.assign(p,{pos:0,need4:false,half:false,shield:false}));
- gid++;turn=0;phase='play';winner=null;extra=false;
- bc([{k:'start'},{k:'say',a:P[0].name+' rolls first',b:'Race to the summit!'}]);
+ if(!isHost||!cfgValid(CFG)||P.filter(p=>!p.left).length<2)return;
+ buildBoard();
+ P.forEach(p=>Object.assign(p,{pos:0,need4:false,half:false,shield:false,skip:false,cursed:false}));
+ gid++;turn=P.findIndex(p=>!p.left);phase='play';winner=null;extra=false;
+ bc([{k:'start'},{k:'say',a:P[turn].name+' rolls first',b:'Race to the summit!'}]);
 }
-function nextTurn(){let n=0;do{turn=(turn+1)%P.length;n++}while(P[turn].left&&n<8)}
+function nextTurn(A){
+ for(let n=0;n<12;n++){turn=(turn+1)%P.length;const q=P[turn];if(q.left)continue;
+  if(q.skip){q.skip=false;A.push({k:'fx',f:'skip'},{k:'say',a:q.name+' is stuck 🌀',b:'Skips this turn'});continue}return}
+}
 function doRoll(){
  if(phase!=='play')return;
- const i=turn,p=P[i],A=[],d=1+rnd(6);let n=d;extra=false;
- A.push({k:'dice',v:d,i},{k:'say',a:p.name+' rolled '+d,b:'Climbing…'});
+ const i=turn,p=P[i],A=[];let d=1+rnd(6),m=p.name+' rolled '+d;extra=false;
+ if(p.cursed){p.cursed=false;const d2=1+rnd(6);m=p.name+' rolled '+d+' & '+d2+' (cursed: lower)';d=Math.min(d,d2)}
+ let n=d;
+ A.push({k:'dice',v:d,i},{k:'say',a:m,b:'Climbing…'});
  if(p.need4){p.need4=false;if(n<4){n=0;A.push({k:'fx',f:'stuck'},{k:'say',a:'🌨️ Blizzard!',b:'Needed 4+. '+p.name+' is stuck'})}}
  if(n&&p.half){p.half=false;n=Math.max(1,Math.ceil(n/2));A.push({k:'say',a:'🌫️ Thin air',b:'Roll halved to '+n})}
  let hit=false;
  if(n){const from=p.pos;n=Math.min(n,N-p.pos);p.pos+=n;A.push({k:'move',i,from,to:p.pos});hit=land(p,i,A,0)}
  if(p.pos>=N){phase='end';winner=p.id;A.push({k:'win',i})}
- else{if(d===6&&n&&!hit)extra=true;if(!extra)nextTurn()}
+ else{if(d===6&&n&&!hit)extra=true;if(!extra)nextTurn(A)}
  bc(A);
 }
 function land(p,i,A,dep){
@@ -223,6 +299,7 @@ function land(p,i,A,dep){
  if(h.k===0&&p.shield){p.shield=false;A.push({k:'fx',f:'shield'},{k:'say',a:'♨️ Shield blocked '+h.n,b:p.name+' is safe'});return true}
  A.push({k:'say',a:h.e+' '+h.n+'!',b:h.d},{k:'hurdle',h:t,pos});
  const o=P.map((q,j)=>j).filter(j=>j!==i&&!P[j].left);
+ const behind=o.filter(j=>P[j].pos<pos).sort((a,b)=>P[b].pos-P[a].pos)[0];
  const jump=(j,to)=>{P[j].pos=to;A.push({k:'jump',i:j,to})};
  switch(t){
   case 'rockslide':jump(i,Math.max(0,pos-3));break;
@@ -230,9 +307,17 @@ function land(p,i,A,dep){
   case 'iceslide':jump(i,Math.max(0,pos-4));break;
   case 'thinair':p.half=true;break;
   case 'blizzard':p.need4=true;break;
+  case 'bear':jump(i,Math.max(0,pos-5));break;
+  case 'sand':p.skip=true;break;
+  case 'storm':jump(i,Math.max(0,pos-8));break;
+  case 'cursed':p.cursed=true;break;
   case 'gust':{const f=Math.random()<.5?2:-2;jump(i,Math.max(0,Math.min(N-1,pos+f)));if(f>0&&dep<2)land(p,i,A,dep+1);break}
-  case 'swap':{if(o.length){o.sort((a,b)=>Math.abs(P[a].pos-pos)-Math.abs(P[b].pos-pos));const j=o[0],q=P[j].pos;jump(j,pos);jump(i,q)}break}
+  case 'swap':{if(o.length){const s=[...o].sort((a,b)=>Math.abs(P[a].pos-pos)-Math.abs(P[b].pos-pos)),j=s[0],q=P[j].pos;jump(j,pos);jump(i,q)}break}
   case 'avalanche':o.forEach(j=>{if(P[j].pos<pos&&P[j].pos>=pos-4)jump(j,Math.max(0,P[j].pos-2))});break;
+  case 'rope':if(behind!==undefined)jump(behind,Math.min(N-1,P[behind].pos+2));break;
+  case 'boulder':if(behind!==undefined)jump(behind,Math.max(0,P[behind].pos-3));break;
+  case 'footprints':{if(!FP[pos]){FP[pos]=true;A.push({k:'say',a:'👣 First footprints!',b:p.name+' moves forward 2'});jump(i,Math.min(N,pos+2));if(dep<2)land(p,i,A,dep+1)}
+   else{A.push({k:'say',a:'👣 Toll!',b:'Already claimed: back 1'});jump(i,Math.max(0,pos-1))}break}
   case 'hotspring':p.shield=true;break;
   case 'cablecar':jump(i,Math.min(N,pos+4));if(dep<2)land(p,i,A,dep+1);break;
   case 'cache':extra=true;break;
@@ -241,19 +326,44 @@ function land(p,i,A,dep){
 }
 
 /* ---------- Client: display & animation ---------- */
-let L=[],REV={},S=null,curGid=-1,ti=0,animating=false,queue=Promise.resolve(),curColor='#2f7de1';
-function show(id){['home','lobby','game'].forEach(x=>$(x).classList.toggle('hide',x!==id))}
+let L=[],REV={},S=null,curGid=-1,ti=0,animating=false,pending=false,queue=Promise.resolve(),curColor='#2f7de1';
+function show(id){['home','lobby','config','game'].forEach(x=>$(x).classList.toggle('hide',x!==id))}
 function apply(s){queue=queue.then(()=>play(s)).catch(e=>console.error(e))}
 function say(a,b=''){$('msg').innerHTML=`<b style="color:${curColor}">${esc(a)}</b>${esc(b)}`}
+function toggleHelp(){const h=$('help'),open=h.classList.contains('hide');h.classList.toggle('hide',!open);$('helpBtn').setAttribute('aria-expanded',open);$('helpBtn').textContent=open?'✖ Hide instructions':'📖 How to play';if(open)renderHelp()}
+function renderHelp(){
+ const sel=(S&&S.cfg)?S.cfg.sel:Object.keys(H);
+ $('help').innerHTML=`<h3>Goal</h3><p>Be the first to reach tile ${N} 🏁.</p>
+ <h3>Your turn</h3><p>Tap Roll. Your token walks that many tiles. Roll a 6 and you go again, unless you hit a hurdle.</p>
+ <h3>Hidden hurdles</h3><p>Hurdles are face-down until someone lands on them. Once flipped they stay visible and affect everyone who lands there. Green tiles help, red tiles hurt, purple tiles are wild.</p>
+ <h3>Flags</h3><p>🚩 Flags sit every 10 tiles. A crevasse drops you to the last flag behind you.</p>
+ <h3>Status chips</h3><p>♨️ Shield ignores your next bad hurdle. Other chips (thin air, blizzard, cursed die, quicksand) show what's affecting your next roll.</p>
+ <h3>Hurdles in this game</h3>${sel.map(k=>`<p>${H[k].e} <b>${H[k].n}</b> (${KT[H[k].k]}): ${H[k].d}</p>`).join('')}
+ <h3>Difficulty (host)</h3><p>Easy ≈ 10 hurdles, Medium ≈ 16, Hard ≈ 22. Harder boards have fewer helpful hurdles.</p>`;
+}
 async function play(s){
+ pending=false;
  if(s.phase==='lobby'){S=s;show('lobby');$('rc').textContent=s.code.toUpperCase();
   $('plist').innerHTML=s.players.map(p=>`<li><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.id===me?' (you)':''}</li>`).join('');
-  $('go').classList.toggle('hide',!isHost);$('copy').classList.toggle('hide',!isHost);$('go').disabled=s.players.length<2;$('wait').classList.toggle('hide',isHost);return}
+  const mp=s.players.find(p=>p.id===me);if(mp&&document.activeElement!==$('rn'))$('rn').value=mp.name;
+  $('go').classList.toggle('hide',!isHost);$('go').disabled=s.players.length<2;$('copy').classList.toggle('hide',!isHost);$('wait').classList.toggle('hide',isHost);
+  if($('help').classList.contains('hide')===false)renderHelp();return}
+ if(s.phase==='config'){S=s;show('config');renderConfig(s);if($('help').classList.contains('hide')===false)renderHelp();return}
  if(s.gid!==curGid)build(s);
  show('game');animating=true;ui();
  for(const a of s.acts)await act(a);
  sync(s);animating=false;ui();
  if(s.phase==='play'&&s.players[s.turn].id===me)SFX.turn();
+}
+function renderConfig(s){
+ const c=s.cfg,host=isHost,valid=cfgValid(c);
+ $('cfgWho').textContent=host?'Pick the hurdles and a difficulty. Difficulty sets how many hurdles go on the board.':'The host is setting up the board. Here is what they have picked:';
+ $('seg').innerHTML=Object.entries(DIFF).map(([k,d])=>`<button class="${c.diff===k?'on':''}" ${host?`onclick="setDiff('${k}')"`:'disabled'}>${d.n}</button>`).join('');
+ $('diffNote').textContent=DIFF[c.diff].note;
+ $('presets').classList.toggle('hide',!host);
+ $('hgrid').innerHTML=Object.entries(H).map(([k,h])=>`<div class="hc ${c.sel.includes(k)?'on':''} ${host?'can':''}" ${host?`onclick="toggleType('${k}')" role="button"`:''}><b>${h.e} ${h.n}<span class="tg tg${h.k}">${KT[h.k]}</span></b>${h.d}</div>`).join('');
+ $('cfgHint').textContent=valid?`${c.sel.length} types selected.`:'Pick at least 3 hurdles, including at least 1 bad one.';
+ $('startBtn').classList.toggle('hide',!host);$('startBtn').disabled=!valid;
 }
 function build(s){
  curGid=s.gid;REV={};let b='';
@@ -262,14 +372,13 @@ function build(s){
    b+=`<div class="c ${p%10===0&&p<N?'fl':''}" id="c${p}"><small>${p}</small><span>${p===N?'🏁':p%10===0?'🚩':''}</span></div>`}}
  $('board').innerHTML=b;$('start').textContent='START';
  document.querySelectorAll('.tk').forEach(t=>t.remove());
- L=s.players.map(p=>{const t=document.createElement('div');t.className='tk nt';t.innerHTML=`<i style="background:${p.color}"></i>`;$('field').appendChild(t);return{id:p.id,name:p.name,color:p.color,pos:0,el:t}});
- $('leg').innerHTML=Object.values(H).map(h=>`<div>${h.e} <b>${h.n}</b><br>${h.d}</div>`).join('')+'<div>🚩 <b>Flags</b><br>Crevasse drops you here</div>';
- ti=s.turn;layout();window.scrollTo({top:document.body.scrollHeight});
+ L=s.players.map(p=>{const t=document.createElement('div');t.className='tk nt';t.innerHTML=`<i style="background:${p.color}">${esc((p.name[0]||'?').toUpperCase())}</i>`;$('field').appendChild(t);return{id:p.id,name:p.name,color:p.color,pos:0,el:t}});
+ ti=s.turn;show('game');layout();window.scrollTo({top:document.body.scrollHeight});
  requestAnimationFrame(()=>requestAnimationFrame(()=>L.forEach(p=>p.el.classList.remove('nt'))));
 }
 function drawCell(i){const h=REV[i],c=$('c'+i);if(!h)return;c.className='c '+['h','g','w'][H[h].k]+' rv';c.innerHTML=`<small>${i}</small><span>${H[h].e}</span>`}
 function sync(s){
- L.forEach((p,i)=>{p.pos=s.players[i].pos;p.left=s.players[i].left});
+ L.forEach((p,i)=>{p.pos=s.players[i].pos});
  s.tiles.forEach((h,i)=>{if(h&&!REV[i]){REV[i]=h;drawCell(i)}});
  ti=s.turn;S=s;layout();
  const cur=s.players[s.turn];curColor=cur.color;
@@ -277,13 +386,14 @@ function sync(s){
  else if(s.extra)say(cur.name+' goes again!','Roll again!');
  else say(cur.name+(cur.id===me?', your turn':"'s turn"),cur.id===me?'Tap Roll!':'Waiting…');
  $('roster').innerHTML=s.players.map(p=>`<li><span class="dot" style="background:${p.color}"></span><span style="flex:1">${esc(p.name)}${p.id===me?' (you)':''}${p.left?' · left':''}</span><b>${p.pos}/${N}</b></li>`).join('');
+ if($('help').classList.contains('hide')===false)renderHelp();
 }
 function ui(){
- const s=S;if(!s||s.phase==='lobby')return;const cur=s.players[s.turn],b=$('rollBtn');
+ const s=S;if(!s||s.phase==='lobby'||s.phase==='config')return;const cur=s.players[s.turn],b=$('rollBtn');
  if(s.phase==='end'){b.textContent=isHost?'Play again':'Race over';b.disabled=!isHost||animating}
- else{b.textContent=cur.id===me?'Roll':'Wait…';b.disabled=cur.id!==me||animating}
+ else{b.textContent=cur.id===me?'Roll':'Wait…';b.disabled=cur.id!==me||animating||pending}
  const m=s.players.find(p=>p.id===me),c=[];
- if(m){if(m.shield)c.push('♨️ Shield ready');if(m.half)c.push('🌫️ Next roll halved');if(m.need4)c.push('🌨️ Need 4+ to move')}
+ if(m){if(m.shield)c.push('♨️ Shield ready');if(m.half)c.push('🌫️ Next roll halved');if(m.need4)c.push('🌨️ Need 4+ to move');if(m.skip)c.push('🌀 Skip next turn');if(m.cursed)c.push('☠️ Cursed die')}
  $('chips').innerHTML=c.map(x=>`<span class="chip">${x}</span>`).join('');
 }
 function layout(){
@@ -295,7 +405,7 @@ function layout(){
   p.el.style.transform=`translate(${x}px,${y}px)`;p.el.classList.toggle('on',i===ti);p.el.style.zIndex=i===ti?4:3;
  });
 }
-addEventListener('resize',()=>{if(L.length){L.forEach(p=>p.el.classList.add('nt'));layout();requestAnimationFrame(()=>L.forEach(p=>p.el.classList.remove('nt')))}});
+addEventListener('resize',()=>{if(L.length&&!$('game').classList.contains('hide')){L.forEach(p=>p.el.classList.add('nt'));layout();requestAnimationFrame(()=>L.forEach(p=>p.el.classList.remove('nt')))}});
 function hop(p){p.el.firstChild.animate([{transform:'translateY(0) scale(1)'},{transform:'translateY(-12px) scale(1.15)'},{transform:'translateY(0) scale(1)'}],{duration:220,easing:'ease-in-out'})}
 function follow(p){const r=p.el.getBoundingClientRect();if(r.top<170||r.bottom>innerHeight-70)window.scrollBy({top:r.top-innerHeight*.5,behavior:'smooth'})}
 async function rollAnim(n){
@@ -317,9 +427,10 @@ async function act(a){
  else if(a.k==='win'){const p=L[a.i];SFX.win();p.el.firstChild.animate([{scale:1},{scale:1.9},{scale:1.3}],{duration:700,easing:'ease-out',fill:'forwards'});await sleep(700)}
 }
 function roll(){
- ac();if(!S||animating)return;
- if(S.phase==='end'){if(isHost)startGame();return}
- if(isHost){if(P[turn].id==='host')doRoll()}else if(conn&&conn.open)conn.send({t:'roll'});
+ ac();if(!S||animating||pending)return;
+ if(S.phase==='end'){if(isHost){phase='config';bc()}return}
+ if(isHost){if(P[turn].id==='host'){pending=true;ui();doRoll()}}
+ else if(conn&&conn.open){pending=true;ui();conn.send({t:'roll'});setTimeout(()=>{if(pending){pending=false;ui()}},4000)}
 }
 function copyLink(){const u=location.origin+location.pathname+'?room='+code,b=$('copy');
  (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>b.textContent='Copied!',()=>prompt('Copy this link',u));setTimeout(()=>b.textContent='Copy invite link',1500)}
