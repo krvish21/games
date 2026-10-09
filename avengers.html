@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Marvel Ludo</title>
+<title>Marvel Ludo: Infinity Gauntlet</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#0d1020;color:#eef;font-family:system-ui,sans-serif;display:flex;justify-content:center}
-#app{width:100%;max-width:480px;padding:12px;text-align:center}
+#app{width:100%;max-width:500px;padding:12px;text-align:center}
 h1{color:#e23636;margin:8px 0}h2{margin:6px 0}
 button,input,select{font:inherit;padding:10px 12px;border-radius:10px;border:0;margin:4px 0}
 button{background:#e23636;color:#fff;font-weight:700;cursor:pointer;width:100%}
@@ -16,47 +16,71 @@ input,select{width:100%;background:#1b2038;color:#fff;text-align:center}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .pc{background:#1b2038;border:2px solid #333b66;border-radius:10px;padding:5px;font-size:12px;cursor:pointer}
 .pc.sel{border-color:#ffd23f}
-.pc img{width:100%;height:90px;object-fit:cover;border-radius:6px;display:block;background:#000}
+.pc img{width:100%;height:86px;object-fit:cover;border-radius:6px;display:block;background:#000}
 .pc small{display:block;opacity:.75;font-size:10px}
-.tk{display:flex;justify-content:space-between;align-items:center;text-align:left;font-size:13px;background:#1b2038;border-radius:8px;padding:8px;margin:4px 0;border-left:5px solid}
-.tk.go{outline:2px solid #ffd23f}.tk.x{opacity:.35}
-.dice button{font-size:26px;padding:8px}
-.log{font-size:12px;text-align:left;background:#141830;border-radius:8px;padding:6px;min-height:70px;margin:6px 0}
+.tk{display:flex;justify-content:space-between;align-items:center;text-align:left;font-size:13px;background:#1b2038;border-radius:8px;padding:6px 8px;margin:4px 0;border-left:5px solid}
+.tk.go{outline:2px solid #ffd23f;cursor:pointer}
+.tk img{width:30px;height:30px;border-radius:6px;object-fit:cover}
+.tk small{display:block;opacity:.7;font-size:10px}
+.dice{font-size:30px;margin:6px 0}
+.log{font-size:12px;text-align:left;background:#141830;border-radius:8px;padding:6px;min-height:60px;margin:6px 0}
+.hud{display:flex;gap:6px;margin:6px 0}
+.ph{flex:1;background:#1b2038;border:2px solid;border-radius:8px;padding:6px;font-size:13px}
+.ph .st{font-size:16px}
 .win{color:#4cd964}.lose{color:#ff5a5a}.small{font-size:11px;opacity:.65}
+.lg{font-size:11px;text-align:left;opacity:.8;margin-top:8px}
+.lg div{margin:2px 0}
 </style></head>
 <body><div id="app"></div>
 <script>
-const KIT={'Iron Man':['atk'],'Thor':['atk'],'Hawkeye':['atk'],'Wolverine':['atk','regen'],'Captain America':['shield'],'Vision':['shield'],'Hulk':['trap','rage'],'Black Widow':['trap'],'Spider-Man':['trap'],'Black Panther':['boost','absorb'],'Doctor Strange':['boost'],'Scarlet Witch':['boost']};
-const ICON={atk:'⚔️',shield:'🛡️',boost:'⏩',trap:'🕸️'};
-const PASS={rage:'heals 10 when hurt',absorb:'+3 move when hurt',regen:'+6 HP each turn'};
+/* ---------- Infinity Gauntlet Ludo ----------
+   Race hero tokens around a 24-space ring. Six stone spaces hold the
+   Infinity Stones. Land on one to claim it; capture a rival to send
+   them home and steal a stone. First to 4 stones performs the Snap. */
+const NSP=24, START=[0,12], STONE_SPOTS=[2,6,10,14,18,22], SAFE=new Set([0,12]), TARGET=4;
 const COL=['#e23636','#3b82f6'];
+const STONES=[
+ {id:'power',  name:'Power',   icon:'⚡', desc:'+1 to every die roll'},
+ {id:'space',  name:'Space',   icon:'🌌', desc:'your heroes cannot be captured'},
+ {id:'time',   name:'Time',    icon:'⏳', desc:'roll a 6 to move again'},
+ {id:'mind',   name:'Mind',    icon:'🧠', desc:'reroll your die once per turn'},
+ {id:'reality',name:'Reality', icon:'🔴', desc:'land on a rival stone to steal it'},
+ {id:'soul',   name:'Soul',    icon:'🟠', desc:'your stones cannot be stolen'},
+];
+const HERO_NAMES=['Iron Man','Thor','Hulk','Captain America','Black Widow','Hawkeye','Spider-Man','Wolverine','Black Panther','Doctor Strange','Scarlet Witch','Vision'];
 const STATS=['intelligence','strength','speed','durability','power','combat'];
 const API='https://cdn.jsdelivr.net/gh/akabab/superhero-api@0.3.0/api/all.json';
-let peer,conn,me=0,G=null,sel=[],selD=null,msg='';
+let peer,conn,me=0,G=null,sel=[],N=3,msg='';
 const app=document.getElementById('app');
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const r6=()=>1+Math.random()*6|0;
-const tile=(p,prog)=>(p*20+prog)%40;
-const ok=t=>!t.dead&&!t.home&&!t.fz;
+const posOf=(p,t)=>(START[p]+t.prog)%NSP;
+const hasStone=(p,id)=>G&&G.stones.some(s=>s.id===id&&s.owner===p);
+const countStones=p=>G.stones.filter(s=>s.owner===p).length;
+const myTurn=()=>G&&G.phase==='play'&&G.turn===me;
 
 /* ---------- connection ---------- */
 function lobby(){
-  app.innerHTML=`<h1>Marvel Ludo</h1><p class="small">Race your heroes round the ring to the Gauntlet. Heroes' power tiles help you and hurt rivals.</p>
+  app.innerHTML=`<h1>Marvel Ludo</h1><h2>Infinity Gauntlet</h2>
+  <p class="small">Race your heroes around the ring, claim the six Infinity Stones, and be first to ${TARGET} to Snap. Capture rivals to send them home and steal their stones.</p>
   <label class="small">Heroes (tokens) per player</label>
-  <select id="n"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
+  <select id="n"><option>2</option><option selected>3</option><option>4</option></select>
   <button onclick="host()">Host a game</button><p>or join a friend</p>
   <input id="c" placeholder="ROOM CODE" maxlength="5"><button onclick="join()">Join game</button><p class="small">${msg}</p>`;
 }
-let N=2;
 function host(){
   N=+document.getElementById('n').value;
   const code=Math.random().toString(36).slice(2,7).toUpperCase();
   me=0;peer=new Peer('mludo-'+code);
-  app.innerHTML='<h1>Marvel Ludo</h1><p>Share this code:</p><h1 id="cd">…</h1><p class="small">Waiting for opponent…</p>';
+  app.innerHTML='<h1>Infinity Gauntlet</h1><p>Share this code:</p><h1 id="cd">…</h1><p class="small">Waiting for opponent…</p>';
   peer.on('open',()=>document.getElementById('cd').textContent=code);
   peer.on('error',e=>{msg='Error: '+e.type;lobby()});
   peer.on('connection',c=>{conn=c;c.on('open',startGame);
-    c.on('data',d=>{if(d.t==='pick')pickSq(1,d.ids);if(d.t==='move')move(1,d.ti,d.di)});
+    c.on('data',d=>{if(!G)return;
+      if(d.t==='pick')pickSq(1,d.ids);
+      else if(d.t==='roll')rollDice(1);
+      else if(d.t==='reroll')reroll(1);
+      else if(d.t==='move')move(1,d.ti)});
     c.on('close',()=>{msg='Opponent left';G=null;lobby()})});
 }
 function join(){
@@ -67,17 +91,17 @@ function join(){
     conn.on('data',d=>{if(d.t==='s'){G=d.g;draw()}});
     conn.on('close',()=>{msg='Host left';G=null;lobby()})});
 }
-function broadcast(){draw();conn.send({t:'s',g:G})}
+function broadcast(){draw();if(conn)conn.send({t:'s',g:G})}
 
-/* ---------- rules (host only) ---------- */
+/* ---------- setup ---------- */
 async function startGame(){
   app.innerHTML='<h1>Loading heroes…</h1>';
   try{
-    const all=await (await fetch(API)).json();
+    const all=await(await fetch(API)).json();
     const roster=[];
-    for(const n in KIT){const h=all.find(x=>x.name===n);
-      if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'&&h.powerstats[s]>0))roster.push({n,img:h.images.md,s:h.powerstats,k:KIT[n]})}
-    G={phase:'pick',n:N,roster,sq:[null,null],log:[],turn:0};
+    for(const n of HERO_NAMES){const h=all.find(x=>x.name===n);
+      if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'&&h.powerstats[s]>0))roster.push({n,img:h.images.md,s:h.powerstats})}
+    G={phase:'pick',n:N,roster,sq:[null,null],log:[],turn:0,stones:[],board:{},tk:null};
     broadcast();
   }catch(e){msg='Could not load hero data: '+e.message;lobby()}
 }
@@ -85,119 +109,158 @@ function pickSq(p,ids){
   if(!G||G.phase!=='pick'||G.sq[p]||ids.length!==G.n||new Set(ids).size!==ids.length)return;
   G.sq[p]=ids.map(i=>G.roster[i]);
   if(G.sq[0]&&G.sq[1]){
-    const b=Array(40).fill(null),free=shuffle([...Array(40).keys()].filter(i=>i%20));
-    G.sq.forEach((sq,p)=>sq.forEach(h=>{for(let k=0;k<3;k++){const i=free.pop();b[i]={o:p,t:h.k[0],h:h.n,pw:h.s.power}}}));
-    G.board=b;
-    G.tk=G.sq.map(sq=>sq.map(h=>{const m=Math.round(40+h.s.durability*.8);return{n:h.n,s:h.s,k:h.k,hp:m,max:m,prog:0,home:0,dead:0,fz:0,sh:0,bonus:0}}));
-    G.phase='play';G.log=['Game on! Red starts.'];startTurn(0);
+    const spots=shuffle(STONE_SPOTS.slice());
+    G.stones=STONES.map((s,i)=>({...s,owner:null,space:spots[i]}));
+    G.board={};G.stones.forEach(s=>G.board[s.space]=s);
+    G.tk=G.sq.map(sq=>sq.map(h=>({n:h.n,img:h.img,prog:0})));
+    G.phase='play';G.six=0;G.turn=0;G.roll=null;G.raw=null;G.used=0;G.rerolled=false;
+    G.log=['Game on! Red goes first.'];
   }
-  broadcast();
-}
-function startTurn(p){
-  G.turn=p;
-  G.tk[p].forEach(t=>{if(t.k[1]==='regen'&&!t.dead)t.hp=Math.min(t.max,t.hp+6)});
-  G.dice=[r6(),r6()];G.used=[0,0];
-  if(!G.tk[p].some(ok)){log('Player '+(p+1)+' has no free hero – turn skipped');endTurn(p)}
-}
-function endTurn(p){G.tk[p].forEach(t=>t.fz=Math.max(0,t.fz-1));startTurn(1-p)}
-function log(s){G.log.push(s);G.log=G.log.slice(-6)}
-function hurt(t,d){
-  if(t.sh){t.sh=0;return `${t.n}'s shield absorbs it`}
-  t.hp-=d;
-  if(t.hp<=0){t.dead=1;return `${t.n} takes ${d} and is KO'd!`}
-  let x='';
-  if(t.k[1]==='rage'){t.hp=Math.min(t.max,t.hp+10);x=' – RAGE! +10 HP'}
-  if(t.k[1]==='absorb'){t.bonus=3;x=' – absorbed, +3 next move'}
-  return `${t.n} takes ${d}${x}`;
-}
-function move(p,ti,di){
-  if(!G||G.phase!=='play'||G.turn!==p||G.used[di])return;
-  const t=G.tk[p][ti];if(!t||!ok(t))return;
-  G.used[di]=1;
-  const d=G.dice[di]+t.bonus;t.bonus=0;
-  t.prog=Math.min(40,t.prog+d);
-  const L=[`${t.n} moves ${d}`];
-  if(t.prog>=40){t.home=1;L.push('reaches the Gauntlet! 🧤')}
-  else{
-    const pos=tile(p,t.prog);
-    const e=G.tk[1-p].find(x=>!x.dead&&!x.home&&tile(1-p,x.prog)===pos&&pos%20);
-    if(e){L.push('captures! '+hurt(e,Math.round(10+t.s.strength*.3)));if(!e.dead)e.prog=Math.max(0,e.prog-4)}
-    const b=G.board[pos];
-    if(b&&b.o!==p){
-      if(b.t==='atk')L.push(`${b.h}'s ⚔️ tile: `+hurt(t,Math.round(12+b.pw*.25)));
-      else if(b.t==='shield'&&t.sh){t.sh=0;L.push(`${b.h}'s 🛡️ tile strips the shield`)}
-      else if(b.t==='boost'){t.prog=Math.max(0,t.prog-3);L.push(`${b.h}'s ⏩ tile throws it back 3`)}
-      else if(b.t==='trap'){t.fz=2;L.push(`caught in ${b.h}'s 🕸️ – frozen next turn`)}
-    }else if(b&&b.o===p){
-      if(b.t==='shield'){t.sh=1;L.push('gains a 🛡️ shield')}
-      else if(b.t==='boost'){t.prog=Math.min(40,t.prog+3);L.push('⏩ +3 boost');if(t.prog>=40){t.home=1;L.push('reaches the Gauntlet! 🧤')}}
-    }
-  }
-  log(L.join(', '));
-  if(G.tk[p].every(x=>x.dead)){G.phase='over';G.win=1-p}
-  else if(G.tk[1-p].every(x=>x.dead)||G.tk[p].every(x=>x.dead||x.home)){G.phase='over';G.win=p}
-  else if(!G.used.includes(0)||!G.tk[p].some(ok))endTurn(p);
   broadcast();
 }
 
+/* ---------- rules (host only) ---------- */
+function rollDice(p){
+  if(!G||G.phase!=='play'||G.turn!==p||G.roll!==null)return;
+  G.raw=r6();
+  G.roll=G.raw+(hasStone(p,'power')?1:0);
+  G.used=0;
+  broadcast();
+}
+function reroll(p){
+  if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used||G.rerolled||!hasStone(p,'mind'))return;
+  G.rerolled=true;G.raw=r6();
+  G.roll=G.raw+(hasStone(p,'power')?1:0);
+  broadcast();
+}
+function move(p,ti){
+  if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used)return;
+  const t=G.tk[p][ti];if(!t)return;
+  G.used=1;t.prog+=G.roll;
+  const L=[`${t.n} moves ${G.roll}`];
+  const pos=posOf(p,t);
+  let captured=false;
+  if(!SAFE.has(pos)){
+    G.tk[1-p].forEach(f=>{
+      if(posOf(1-p,f)===pos){
+        if(hasStone(1-p,'space'))L.push(`${f.n} is shielded by the Space Stone`);
+        else{f.prog=0;captured=true;L.push(`captures ${f.n}!`)}
+      }
+    });
+  }
+  if(captured){
+    if(hasStone(1-p,'soul'))L.push('the Soul Stone protects their stones');
+    else{const s=steal(1-p,p);if(s)L.push(`steals the ${s.name} Stone ${s.icon}`)}
+  }
+  const st=G.board[pos];
+  if(st){
+    if(st.owner===null){st.owner=p;L.push(`claims the ${st.name} Stone ${st.icon}`)}
+    else if(st.owner===1-p&&hasStone(p,'reality')){st.owner=p;L.push(`Reality warps the ${st.name} Stone away ${st.icon}`)}
+  }
+  log(L.join(', '));
+  if(countStones(p)>=TARGET){G.phase='over';G.win=p;broadcast();return}
+  const extra=G.raw===6&&hasStone(p,'time')&&(G.six||0)<2;
+  if(extra)G.six=(G.six||0)+1;
+  if(extra)startTurn(p);else endTurn(p);
+}
+function steal(from,to){
+  const own=G.stones.filter(s=>s.owner===from);
+  if(!own.length)return null;
+  const s=own[Math.random()*own.length|0];s.owner=to;return s;
+}
+function startTurn(p){
+  G.turn=p;G.roll=null;G.raw=null;G.used=0;G.rerolled=false;
+  log(`Player ${p+1}'s turn`);broadcast();
+}
+function endTurn(p){G.six=0;startTurn(1-p)}
+function log(s){G.log.push(s);G.log=G.log.slice(-6)}
+
 /* ---------- UI ---------- */
-function myTurn(){return G.phase==='play'&&G.turn===me}
 function tog(i){
   if(sel.includes(i))sel=sel.filter(x=>x!==i);else if(sel.length<G.n)sel.push(i);
   draw();
 }
-function confirmPick(){me===0?pickSq(0,sel):(conn.send({t:'pick',ids:sel}),G.sq[1]=[]);draw()}
-function die(i){if(myTurn()&&!G.used[i]){selD=i;draw()}}
-function tok(i){
-  if(!myTurn()||selD===null||!ok(G.tk[me][i]))return;
-  const d=selD;selD=null;
-  me===0?move(0,i,d):conn.send({t:'move',ti:i,di:d});
+function confirmPick(){
+  if(me===0)pickSq(0,sel);
+  else{conn.send({t:'pick',ids:sel});G.sq[1]=sel.map(i=>G.roster[i]);draw()}
 }
-function draw(){
-  if(!G)return;
-  if(G.phase==='pick')return drawPick();
-  if(!myTurn()||(selD!==null&&G.used[selD]))selD=null;
-  drawPlay();
-}
+function rollBtn(){if(!myTurn()||G.roll!==null)return;me===0?rollDice(0):conn.send({t:'roll'})}
+function rerollBtn(){if(!myTurn()||G.roll===null||G.used||G.rerolled)return;me===0?reroll(0):conn.send({t:'reroll'})}
+function tok(i){if(!myTurn()||G.roll===null||G.used)return;me===0?move(0,i):conn.send({t:'move',ti:i})}
+function draw(){if(!G)return;if(G.phase==='pick')return drawPick();drawPlay()}
+
 function drawPick(){
   if(G.sq[me]){app.innerHTML='<h2>Squad locked in ✅</h2><p>Waiting for opponent…</p>';return}
-  app.innerHTML=`<h2>Choose ${G.n} hero${G.n>1?'es':''}</h2><p class="small">Each hero adds 3 power tiles to the board. Picked ${sel.length}/${G.n}</p><div class="grid">`+
-  G.roster.map((c,i)=>`<div class="pc ${sel.includes(i)?'sel':''}" onclick="tog(${i})"><img src="${c.img}" alt=""><b>${c.n}</b><small>${ICON[c.k[0]]} · HP ${Math.round(40+c.s.durability*.8)} · STR ${c.s.strength} · POW ${c.s.power}</small>${c.k[1]?`<small>${PASS[c.k[1]]}</small>`:''}</div>`).join('')+
+  app.innerHTML=`<h2>Choose ${G.n} hero${G.n>1?'es':''}</h2>
+  <p class="small">Picked ${sel.length}/${G.n}. Your heroes are your tokens on the ring.</p>
+  <div class="grid">`+
+  G.roster.map((c,i)=>`<div class="pc ${sel.includes(i)?'sel':''}" onclick="tog(${i})">
+    <img src="${c.img}" alt=""><b>${c.n}</b>
+    <small>STR ${c.s.strength} · SPD ${c.s.speed} · POW ${c.s.power}</small></div>`).join('')+
   `</div><button ${sel.length===G.n?'':'disabled'} onclick="confirmPick()">Lock in squad</button>`;
 }
-function pt(i){const a=i/40*6.2832-1.5708;return[200+150*Math.cos(a),200+150*Math.sin(a)]}
+function pt(i){const a=i/NSP*6.2832-1.5708;return[200+150*Math.cos(a),200+150*Math.sin(a)]}
 function svg(){
   let s='<svg viewBox="0 0 400 400" width="100%"><circle cx="200" cy="200" r="150" fill="none" stroke="#333b66" stroke-width="2"/>';
-  for(let i=0;i<40;i++){
-    const[x,y]=pt(i),b=G.board[i];
-    s+=`<circle cx="${x}" cy="${y}" r="11" fill="#141830" stroke="${b?COL[b.o]:i%20?'#333b66':'#ffd23f'}" stroke-width="2.5"/>`;
-    if(b)s+=`<text x="${x}" y="${y+4}" font-size="11" text-anchor="middle">${ICON[b.t]}</text>`;
-    else if(i%20==0)s+=`<text x="${x}" y="${y+4}" font-size="10" text-anchor="middle" fill="#ffd23f">S</text>`;
+  for(let i=0;i<NSP;i++){
+    const[x,y]=pt(i),st=G.board[i];
+    let stroke=SAFE.has(i)?'#ffd23f':'#333b66',fill='#141830';
+    if(st){fill='#0a0d18';stroke=st.owner===null?'#6b7399':COL[st.owner]}
+    s+=`<circle cx="${x}" cy="${y}" r="13" fill="${fill}" stroke="${stroke}" stroke-width="3"/>`;
+    if(st)s+=`<text x="${x}" y="${y+5}" font-size="13" text-anchor="middle">${st.icon}</text>`;
+    else if(SAFE.has(i))s+=`<text x="${x}" y="${y+4}" font-size="11" text-anchor="middle" fill="#ffd23f">★</text>`;
   }
-  s+='<text x="200" y="195" font-size="40" text-anchor="middle">🧤</text><text x="200" y="225" font-size="13" text-anchor="middle" fill="#ffd23f">GAUNTLET</text>';
-  G.tk.forEach((tt,p)=>tt.forEach((t,i)=>{
-    if(t.dead||t.home)return;
-    const[x,y]=pt(tile(p,t.prog));
-    s+=`<circle cx="${x+(p?7:-7)}" cy="${y+(i-1.5)*5}" r="8" fill="${COL[p]}" stroke="#fff" stroke-width="${t.sh?3:1.5}"/><text x="${x+(p?7:-7)}" y="${y+(i-1.5)*5+4}" font-size="10" font-weight="700" text-anchor="middle" fill="#fff">${t.n[0]}</text>`;
-  }));
+  const by={};
+  G.tk.forEach((tt,p)=>tt.forEach((t,i)=>{const k=posOf(p,t);(by[k]=by[k]||[]).push({p,i,t})}));
+  for(const k in by){
+    const arr=by[k],[x,y]=pt(+k);
+    arr.forEach((o,j)=>{
+      const dx=(j-(arr.length-1)/2)*13;
+      const shield=hasStone(o.p,'space');
+      s+=`<circle cx="${x+dx}" cy="${y}" r="8" fill="${COL[o.p]}" stroke="${shield?'#8fe3ff':'#fff'}" stroke-width="${shield?3:1.5}"/>`;
+      s+=`<text x="${x+dx}" y="${y+4}" font-size="10" font-weight="700" text-anchor="middle" fill="#fff">${o.t.n[0]}</text>`;
+    });
+  }
+  s+='<text x="200" y="188" font-size="34" text-anchor="middle">🧤</text>';
+  s+=`<text x="200" y="212" font-size="12" text-anchor="middle" fill="#ffd23f">FIRST TO ${TARGET}</text>`;
+  s+=`<text x="200" y="230" font-size="12" text-anchor="middle" fill="#9aa3cc">RED ${countStones(0)} · BLUE ${countStones(1)}</text>`;
   return s+'</svg>';
 }
+function stonesHud(p){
+  const own=G.stones.filter(s=>s.owner===p);
+  return own.length?own.map(s=>`<span title="${s.name}: ${s.desc}">${s.icon}</span>`).join(''):'<span class="small">— none —</span>';
+}
 function row(t,i,mine){
-  const go=mine&&myTurn()&&selD!==null&&ok(t);
-  const fl=(t.sh?'🛡️':'')+(t.fz?'🕸️':'')+(t.bonus?'⏩':'');
-  return `<div class="tk ${go?'go':''} ${t.dead?'x':''}" style="border-color:${COL[mine?me:1-me]}" ${mine?`onclick="tok(${i})"`:''}>
-  <span><b>${t.n}</b> ${fl}<br><small>${t.dead?'KO':t.home?'HOME 🧤':`HP ${t.hp}/${t.max} · ${t.prog}/40`}</small></span><span>${ICON[t.k[0]]}</span></div>`;
+  const who=mine?me:1-me;
+  const go=mine&&myTurn()&&G.roll!==null&&!G.used;
+  return `<div class="tk ${go?'go':''}" style="border-color:${COL[who]}" ${go?`onclick="tok(${i})"`:''}>
+    <img src="${t.img}" alt="">
+    <span style="flex:1;margin-left:8px"><b>${t.n}</b><small>space ${posOf(who,t)}</small></span>
+    ${hasStone(who,'space')?'<span title="Space Stone">🌌</span>':''}</div>`;
 }
 function drawPlay(){
   let panel;
-  if(G.phase==='over')panel=`<h2 class="${G.win===me?'win':'lose'}">${G.win===me?'Victory! 🏆':'Defeat'}</h2><button onclick="location.reload()">Play again</button>`;
+  if(G.phase==='over')panel=`<h2 class="${G.win===me?'win':'lose'}">${G.win===me?'Snap! You win 🧤':'Defeat'}</h2><button onclick="location.reload()">Play again</button>`;
   else if(!myTurn())panel='<p>Opponent is moving…</p>';
-  else panel=`<p><b>Your turn</b> – tap a die, then a hero</p><div class="row dice">${G.dice.map((v,i)=>`<button class="${selD===i?'on':''}" ${G.used[i]?'disabled':''} onclick="die(${i})">🎲 ${v}</button>`).join('')}</div>`;
-  app.innerHTML=`<div class="small">You are <b style="color:${COL[me]}">${me?'Blue':'Red'}</b> · tile owner = border colour. Your tiles help you, theirs hurt you.</div>${svg()}
-  <div class="log">${G.log.slice(-4).join('<br>')}</div>${panel}
-  <div>${G.tk[me].map((t,i)=>row(t,i,1)).join('')}</div>
-  <div class="small">Opponent</div><div>${G.tk[1-me].map((t,i)=>row(t,i,0)).join('')}</div>
-  <p class="small">⚔️ damages rivals · 🛡️ shields you / strips rivals · ⏩ +3 you / −3 rivals · 🕸️ freezes rivals. Landing on a rival hits them (not on S tiles).</p>`;
+  else if(G.roll===null)panel=`<p><b>Your turn</b> – roll the die</p><button onclick="rollBtn()">🎲 Roll</button>`;
+  else{
+    const mind=hasStone(me,'mind');
+    panel=`<p><b>Your turn</b> – tap a hero to move</p><div class="dice">🎲 ${G.roll}${hasStone(me,'power')?' <span class="small">(+1 Power)</span>':''}</div>`+
+      (mind&&!G.rerolled&&!G.used?`<button onclick="rerollBtn()">🧠 Reroll</button>`:'');
+  }
+  app.innerHTML=`
+  <div class="small">You are <b style="color:${COL[me]}">${me?'Blue':'Red'}</b> · first to ${TARGET} Infinity Stones wins the Snap</div>
+  <div class="hud">
+    <div class="ph" style="border-color:${COL[0]}"><b>Red</b> <span class="st">${stonesHud(0)}</span></div>
+    <div class="ph" style="border-color:${COL[1]}"><b>Blue</b> <span class="st">${stonesHud(1)}</span></div>
+  </div>
+  ${svg()}
+  <div class="log">${G.log.slice(-4).join('<br>')}</div>
+  ${panel}
+  <div class="small">Your heroes</div>${G.tk[me].map((t,i)=>row(t,i,1)).join('')}
+  <div class="small">Opponent</div>${G.tk[1-me].map((t,i)=>row(t,i,0)).join('')}
+  <div class="lg">${STONES.map(s=>`<div>${s.icon} <b>${s.name}</b> – ${s.desc}</div>`).join('')}
+  <div>★ safe start (no captures) · capture a rival to send them home and steal a stone</div></div>`;
 }
 lobby();
 </script></body></html>
