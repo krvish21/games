@@ -62,6 +62,7 @@ details.lg div{margin:3px 0}
 .center{display:flex;align-items:center;justify-content:center;font-size:clamp(16px,5vw,34px);
   background:conic-gradient(from 45deg,#e23636 0 25%,#22c55e 25% 50%,#eab308 50% 75%,#3b82f6 75% 100%)}
 .center span{filter:drop-shadow(0 1px 2px #000a)}
+.center.locked{filter:grayscale(.85) brightness(.8)}
 .overlay{position:absolute;inset:0;pointer-events:none}
 .tok{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;
   color:#fff;font-weight:800;border:2px solid #fff;box-shadow:0 1px 4px #000a;z-index:5;
@@ -80,6 +81,7 @@ details.lg div{margin:3px 0}
 .fx-msg.steal{background:linear-gradient(90deg,#b45309,#fbbf24)}
 .fx-msg.shield{background:linear-gradient(90deg,#0369a1,#22d3ee);color:#06283a;text-shadow:none}
 .fx-msg.soul{background:linear-gradient(90deg,#b45309,#fb923c)}
+.fx-msg.unlock{background:linear-gradient(90deg,#7c3aed,#22d3ee);color:#06283a;text-shadow:none}
 .fx-msg.win{background:linear-gradient(90deg,#f59e0b,#fde047);color:#3a2a00;text-shadow:none;font-size:clamp(20px,6vw,36px)}
 @keyframes fxpop{0%{opacity:0;transform:scale(.4)}13%{opacity:1;transform:scale(1.18)}26%{transform:scale(1)}70%{opacity:1}100%{opacity:0;transform:translateY(-30px) scale(1)}}
 .board.shake{animation:shake .42s}
@@ -88,9 +90,11 @@ details.lg div{margin:3px 0}
 <body><div id="app"></div>
 <script>
 /* ---------- Infinity Gauntlet Ludo ----------
-   Heroes race around a classic 52-tile Ludo track. Six Infinity Stones
-   sit on the track: pass or land on one to claim it, capture a rival to
-   send them home and steal a stone. First to 4 stones performs the Snap.
+   Heroes race around a classic 52-tile Ludo track. A few Infinity Stones
+   (rare) rest on the track; land exactly on one to claim it. Each stone
+   is single-use and returns to the board once spent. The center gauntlet
+   stays locked until the first stone is claimed or stolen; after that the
+   first hero to finish a lap while its owner still holds a stone snaps.
    Move by tapping a hero piece in your own base. */
 const PATH=[
  [6,1],[6,2],[6,3],[6,4],[6,5],
@@ -109,15 +113,15 @@ const PATH=[
 const PATH_IDX={};PATH.forEach(([r,c],i)=>PATH_IDX[r+','+c]=i);
 const NSP=PATH.length, START=[0,26], STONE_SPOTS=[3,11,19,28,36,44];
 const SAFE=new Set([0,8,13,21,26,34,39,47]);
-const TARGET=4;
+const MAX_STONES=3; /* only a few stones rest on the track at once */
 const COL=['#e23636','#3b82f6'];
 const STONES=[
- {id:'power',  name:'Power',   icon:'⚡', desc:'+1 to every die roll'},
- {id:'space',  name:'Space',   icon:'🌌', desc:'your heroes cannot be captured'},
- {id:'time',   name:'Time',    icon:'⏳', desc:'roll a 6 to move again'},
- {id:'mind',   name:'Mind',    icon:'🧠', desc:'reroll your die once per turn'},
- {id:'reality',name:'Reality', icon:'🔴', desc:'land exactly on a rival stone to steal it'},
- {id:'soul',   name:'Soul',    icon:'🟠', desc:'your stones cannot be stolen'},
+ {id:'power',  name:'Power',   icon:'⚡', desc:'+1 to your next roll (then spent)'},
+ {id:'space',  name:'Space',   icon:'🌌', desc:'block the next capture of a hero (then spent)'},
+ {id:'time',   name:'Time',    icon:'⏳', desc:'roll a 6 to move again (then spent)'},
+ {id:'mind',   name:'Mind',    icon:'🧠', desc:'reroll your die once (then spent)'},
+ {id:'reality',name:'Reality', icon:'🔴', desc:'ignore the Soul Stone when you steal (then spent)'},
+ {id:'soul',   name:'Soul',    icon:'🟠', desc:'block the next steal from your hoard (then spent)'},
 ];
 const HERO_NAMES=['Iron Man','Thor','Hulk','Captain America','Black Widow','Hawkeye','Spider-Man','Wolverine','Black Panther','Doctor Strange','Scarlet Witch','Vision'];
 const STATS=['intelligence','strength','speed','durability','power','combat'];
@@ -135,7 +139,7 @@ const myTurn=()=>G&&G.phase==='play'&&G.turn===me;
 /* ---------- connection ---------- */
 function lobby(){
   app.innerHTML=`<h1>Marvel Ludo</h1><h2>Infinity Gauntlet</h2>
-  <p class="small">Race your heroes around the Ludo track, claim the six Infinity Stones, and be first to ${TARGET} to Snap. Capture rivals to send them home and steal their stones.</p>
+  <p class="small">Lap the Ludo track and land on rare Infinity Stones to claim them. The center gauntlet stays 🔒 locked until the first stone is claimed or stolen — then the first hero to finish a lap while still holding a stone performs the Snap.</p>
   <label class="small">Heroes (tokens) per player</label>
   <select id="n"><option>2</option><option selected>3</option><option>4</option></select>
   <button onclick="host()">Host a game</button><p>or join a friend</p>
@@ -174,7 +178,7 @@ async function startGame(){
     const roster=[];
     for(const n of HERO_NAMES){const h=all.find(x=>x.name===n);
       if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'&&h.powerstats[s]>0))roster.push({n,img:h.images.md,s:h.powerstats})}
-    G={phase:'pick',n:N,roster,sq:[null,null],log:[],turn:0,stones:[],board:{},tk:null,fx:[],fxN:0};
+    G={phase:'pick',n:N,roster,sq:[null,null],log:[],turn:0,stones:[],board:{},tk:null,fx:[],fxN:0,homeOpen:false,win:null};
     broadcast();
   }catch(e){msg='Could not load hero data: '+e.message;lobby()}
 }
@@ -182,9 +186,9 @@ function pickSq(p,ids){
   if(!G||G.phase!=='pick'||G.sq[p]||ids.length!==G.n||new Set(ids).size!==ids.length)return;
   G.sq[p]=ids.map(i=>G.roster[i]);
   if(G.sq[0]&&G.sq[1]){
-    const spots=shuffle(STONE_SPOTS.slice());
-    G.stones=STONES.map((s,i)=>({...s,owner:null,space:spots[i]}));
-    G.board={};G.stones.forEach(s=>G.board[s.space]=s);
+    G.stones=STONES.map(s=>({...s,owner:null,space:null}));
+    G.board={};G.homeOpen=false;G.win=null;
+    placeStones();
     G.tk=G.sq.map(sq=>sq.map(h=>({n:h.n,img:h.img,prog:0})));
     G.phase='play';G.six=0;G.turn=0;G.roll=null;G.raw=null;G.used=0;G.rerolled=false;
     G.fx=[];G.fxN=0;seenFx=0;shown={};
@@ -244,22 +248,24 @@ function runFx(){
 /* ---------- rules (host only) ---------- */
 function rollDice(p){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll!==null)return;
-  G.raw=r6();
-  G.roll=G.raw+(hasStone(p,'power')?1:0);
+  G.raw=r6();G.roll=G.raw;
+  if(hasStone(p,'power')){G.roll++;consumeStone(p,'power')}
   G.used=0;
   emitFx('roll',String(G.roll),'🎲');
   broadcast();
 }
 function reroll(p){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used||G.rerolled||!hasStone(p,'mind'))return;
-  G.rerolled=true;G.raw=r6();
-  G.roll=G.raw+(hasStone(p,'power')?1:0);
+  consumeStone(p,'mind');
+  G.rerolled=true;G.raw=r6();G.roll=G.raw;
+  if(hasStone(p,'power')){G.roll++;consumeStone(p,'power')}
   emitFx('roll',String(G.roll),'🎲');
   broadcast();
 }
 function move(p,ti){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used)return;
   const t=G.tk[p][ti];if(!t)return;
+  const oldProg=t.prog;
   G.used=1;t.prog+=G.roll;
   const L=[`${t.n} moves ${G.roll}`];
   const pos=posOf(p,t);
@@ -267,31 +273,59 @@ function move(p,ti){
   if(!SAFE.has(pos)){
     G.tk[1-p].forEach(f=>{
       if(posOf(1-p,f)===pos){
-        if(hasStone(1-p,'space')){L.push(`${f.n} is shielded by the Space Stone`);emitFx('shield',`${f.n} shielded`,'🌌')}
+        if(hasStone(1-p,'space')){consumeStone(1-p,'space');L.push(`${f.n} is shielded by the Space Stone`);emitFx('shield',`${f.n} shielded`,'🌌')}
         else{f.prog=0;captured=true;L.push(`captures ${f.n}!`);emitFx('capture',`Captured ${f.n}!`,'⚔️')}
       }
     });
   }
-  if(captured){
-    if(hasStone(1-p,'soul')){L.push('the Soul Stone protects their stones');emitFx('soul','Soul Stone protects','🟠')}
-    else{const s=steal(1-p,p);if(s){L.push(`steals the ${s.name} Stone ${s.icon}`);emitFx('steal',`Stole ${s.name} Stone`,s.icon)}}
-  }
+  if(captured)captureReward(p,L);
   const st=G.board[pos];
-  if(st){
-    if(st.owner===null){st.owner=p;L.push(`lands exactly on the ${st.name} Stone ${st.icon}`);emitFx('claim',`${st.name} Stone!`,st.icon)}
-    else if(st.owner===1-p&&hasStone(p,'reality')){st.owner=p;L.push(`Reality warps the ${st.name} Stone away ${st.icon}`);emitFx('steal',`Reality steals ${st.name}`,'🔴')}
+  if(st&&st.owner===null){
+    st.owner=p;st.space=null;rebuildBoard();
+    L.push(`claims the ${st.name} Stone ${st.icon}`);emitFx('claim',`${st.name} Stone!`,st.icon);
+    openHome();placeStones();
   }
   log(L.join(', '));
-  if(countStones(p)>=TARGET){G.phase='over';G.win=p;emitFx('win',`${p?'Blue':'Red'} SNAPS!`,'🧤');broadcast();return}
+  if(G.homeOpen&&G.stones.some(s=>s.owner===p)&&Math.floor(t.prog/NSP)>Math.floor(oldProg/NSP)){
+    G.phase='over';G.win=p;emitFx('win',`${p?'Blue':'Red'} SNAPS!`,'🧤');broadcast();return;
+  }
   const extra=G.raw===6&&hasStone(p,'time')&&(G.six||0)<2;
-  if(extra)G.six=(G.six||0)+1;
+  if(extra){G.six=(G.six||0)+1;consumeStone(p,'time')}
   if(extra)startTurn(p);else endTurn(p);
+}
+function captureReward(p,L){
+  const rival=1-p,own=G.stones.filter(s=>s.owner===rival);
+  if(!own.length)return;
+  if(hasStone(rival,'soul')&&!hasStone(p,'reality')){consumeStone(rival,'soul');L.push('the Soul Stone protects their stones');emitFx('soul','Soul Stone protects','🟠');return}
+  if(hasStone(p,'reality'))consumeStone(p,'reality');
+  const s=steal(rival,p);
+  if(s){L.push(`steals the ${s.name} Stone ${s.icon}`);emitFx('steal',`Stole ${s.name} Stone`,s.icon);openHome()}
 }
 function steal(from,to){
   const own=G.stones.filter(s=>s.owner===from);
   if(!own.length)return null;
   const s=own[Math.random()*own.length|0];s.owner=to;return s;
 }
+/* --- stone board: rare stones, single-use, replenish when spent --- */
+function rebuildBoard(){G.board={};G.stones.forEach(s=>{if(s.owner===null&&s.space!==null)G.board[s.space]=s})}
+function boardStones(){return G.stones.filter(s=>s.owner===null&&s.space!==null).length}
+function placeStones(){
+  for(let guard=0;guard<24&&boardStones()<MAX_STONES;guard++){
+    const pool=G.stones.filter(s=>s.owner===null&&s.space===null);
+    if(!pool.length)break;
+    const used=new Set(G.stones.filter(s=>s.space!==null).map(s=>s.space));
+    const free=STONE_SPOTS.filter(x=>!used.has(x));
+    if(!free.length)break;
+    pool[Math.random()*pool.length|0].space=free[Math.random()*free.length|0];
+  }
+  rebuildBoard();
+}
+function consumeStone(p,id){
+  const s=G.stones.find(x=>x.id===id&&x.owner===p);
+  if(!s)return;
+  s.owner=null;s.space=null;placeStones();
+}
+function openHome(){if(G.homeOpen)return;G.homeOpen=true;emitFx('unlock','Gauntlet unlocked!','🔓')}
 function startTurn(p){
   G.turn=p;G.roll=null;G.raw=null;G.used=0;G.rerolled=false;
   log(`Player ${p+1}'s turn`);broadcast();
@@ -339,7 +373,7 @@ function board(){
   g+=`<div class="yard dim" style="grid-area:1/10/7/16"></div>`;
   g+=`<div class="yard y1" style="grid-area:10/10/16/16">${yardHeroes(1)}</div>`;
   g+=`<div class="yard dim b" style="grid-area:10/1/16/7"></div>`;
-  g+=`<div class="center" style="grid-area:7/7/10/10"><span>🧤</span></div>`;
+  g+=`<div class="center ${G.homeOpen?'':'locked'}" style="grid-area:7/7/10/10"><span>${G.homeOpen?'🧤':'🔒'}</span></div>`;
   for(let r=0;r<15;r++)for(let c=0;c<15;c++){
     const inYard=(r<6&&c<6)||(r<6&&c>8)||(r>8&&c<6)||(r>8&&c>8);
     const inCenter=(r>=6&&r<=8&&c>=6&&c<=8);
@@ -424,6 +458,7 @@ function drawPlay(){
   else if(G.roll===null)action=`<button class="roll" onclick="rollBtn()">🎲 ROLL</button>`;
   else action=`<div class="die">${G.roll}</div>
     <div class="small">${hasStone(me,'power')?'Power +1 · ':''}tap a hero in your base</div>
+    ${G.homeOpen&&G.stones.some(s=>s.owner===me)?'<div class="small win">🧤 Gauntlet open — finish a lap to Snap!</div>':''}
     ${hasStone(me,'mind')&&!G.rerolled&&!G.used?'<button onclick="rerollBtn()">🧠 Reroll</button>':''}`;
   app.innerHTML=`
   <button class="mute" onclick="toggleMute()">${muted?'🔇':'🔊'}</button>
@@ -437,7 +472,7 @@ function drawPlay(){
   <div class="log">${G.log.slice(-3).join('<br>')}</div>
   <details class="lg"><summary>Stones &amp; rules</summary>
     ${STONES.map(s=>`<div>${s.icon} <b>${s.name}</b> – ${s.desc}</div>`).join('')}
-    <div>★ safe tile (no captures) · land exactly on a stone to claim it · capture a rival to send them home and steal a stone</div>
+    <div>★ safe tile (no captures) · rare stones are single-use: land exactly on one to claim it, and it replenishes on the track once spent · the center 🔒 unlocks when the first stone is claimed or stolen · then hold a stone and finish a lap to Snap · capture a rival to steal their stone</div>
   </details>`;
 }
 lobby();
