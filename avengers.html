@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avengers Trumps</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0d1020;color:#eef;font-family:system-ui,sans-serif;min-height:100vh;display:flex;justify-content:center}
+#app{width:100%;max-width:480px;padding:16px;text-align:center}
+h1{color:#e23636;margin:8px 0}
+button,input{font:inherit;padding:12px 16px;border-radius:10px;border:0;margin:6px 0}
+button{background:#e23636;color:#fff;font-weight:700;cursor:pointer;width:100%}
+button:disabled{opacity:.4}
+input{width:100%;background:#1b2038;color:#fff;text-align:center;letter-spacing:2px}
+.card{background:#1b2038;border:2px solid #333b66;border-radius:14px;padding:10px;flex:1}
+.card img{width:100%;height:190px;object-fit:cover;border-radius:8px;background:#000}
+.card h3{margin:6px 0}
+.st{display:flex;justify-content:space-between;padding:8px 10px;margin:4px 0;border-radius:8px;background:#262d52;text-transform:capitalize;width:100%;color:#fff;font-weight:600}
+button.st:disabled{opacity:1}
+button.st:not(:disabled){background:#2f3a78;border:1px solid #6b7cff}
+.hl{outline:3px solid #ffd23f}
+.row{display:flex;gap:8px}
+.bar{display:flex;justify-content:space-between;font-size:14px;opacity:.85;margin-bottom:8px}
+.win{color:#4cd964}.lose{color:#ff5a5a}
+.small{font-size:13px;opacity:.7}
+</style></head>
+<body><div id="app"></div>
+<script>
+const STATS=['intelligence','strength','speed','durability','power','combat'];
+const NAMES=['Iron Man','Captain America','Thor','Hulk','Black Widow','Hawkeye','Vision','Scarlet Witch','Spider-Man','Black Panther','Doctor Strange','Ant-Man','Falcon','War Machine','Captain Marvel','Quicksilver','Wasp','Wolverine','Star-Lord','Nick Fury'];
+const API='https://cdn.jsdelivr.net/gh/akabab/superhero-api@0.3.0/api/all.json';
+let peer,conn,me=0,G=null,V=null,msg='',showRev=false,lastSeq=0,code='';
+const $=s=>document.getElementById(s);
+const app=$('app');
+
+function lobby(){
+  app.innerHTML=`<h1>Avengers Trumps</h1><p class="small">2-player card duel. Stats from the Superhero API.</p>
+  <button onclick="host()">Host a game</button>
+  <p>or join a friend</p>
+  <input id="c" placeholder="ROOM CODE" maxlength="5">
+  <button onclick="join()">Join game</button><p class="small">${msg}</p>`;
+}
+function host(){
+  code=Math.random().toString(36).slice(2,7).toUpperCase();
+  me=0;peer=new Peer('avtt-'+code);
+  app.innerHTML='<h1>Avengers Trumps</h1><p>Share this code:</p><h1 id="cd">…</h1><p class="small">Waiting for opponent…</p>';
+  peer.on('open',()=>$('cd').textContent=code);
+  peer.on('error',e=>{msg='Error: '+e.type;lobby()});
+  peer.on('connection',c=>{conn=c;c.on('open',startGame);c.on('data',d=>{if(d.t==='pick')pick(1,d.s)});c.on('close',()=>{msg='Opponent left';lobby()})});
+}
+function join(){
+  const c=$('c').value.trim().toUpperCase();if(!c)return;
+  me=1;peer=new Peer();
+  app.innerHTML='<h1>Connecting…</h1>';
+  peer.on('error',e=>{msg='Could not connect ('+e.type+')';lobby()});
+  peer.on('open',()=>{conn=peer.connect('avtt-'+c);
+    conn.on('data',d=>{if(d.t==='view'){V=d.v;if(V.reveal&&V.reveal.seq>lastSeq){lastSeq=V.reveal.seq;showRev=true}draw()}});
+    conn.on('close',()=>{msg='Host left';lobby()})});
+}
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+async function startGame(){
+  app.innerHTML='<h1>Dealing…</h1>';
+  try{
+    const all=await (await fetch(API)).json();
+    let cards=[];
+    for(const n of NAMES){
+      const h=all.find(x=>x.name===n);
+      if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'))
+        cards.push({n:h.name,img:h.images.md,s:h.powerstats});
+    }
+    if(cards.length%2)cards.pop();
+    shuffle(cards);
+    const m=cards.length/2;
+    G={hand:[cards.slice(0,m),cards.slice(m)],turn:0,reveal:null,seq:0,over:null};
+    broadcast();
+  }catch(e){msg='Could not load hero data: '+e.message;lobby()}
+}
+function viewFor(p){
+  const o=1-p;
+  return{card:G.hand[p][0],mine:G.hand[p].length,opp:G.hand[o].length,turn:G.turn===p,over:G.over===null?null:(G.over===p?'win':'lose'),
+    reveal:G.reveal&&{seq:G.reveal.seq,stat:G.reveal.stat,mine:G.reveal.c[p],theirs:G.reveal.c[o],res:G.reveal.w===-1?'tie':(G.reveal.w===p?'win':'lose')}};
+}
+function broadcast(){
+  const v=viewFor(0);
+  if(v.reveal&&v.reveal.seq>lastSeq){lastSeq=v.reveal.seq;showRev=true}
+  V=v;draw();
+  conn.send({t:'view',v:viewFor(1)});
+}
+function pick(p,s){
+  if(!G||G.over!==null||G.turn!==p)return;
+  const a=G.hand[0][0],b=G.hand[1][0];
+  const d=a.s[s]-b.s[s];
+  const w=d>0?0:d<0?1:-1;
+  G.hand[0].shift();G.hand[1].shift();
+  if(w===-1){G.hand[0].push(a);G.hand[1].push(b)}
+  else{G.hand[w].push(a,b);G.turn=w}
+  G.reveal={seq:++G.seq,stat:s,c:[a,b],w};
+  if(!G.hand[0].length)G.over=1;else if(!G.hand[1].length)G.over=0;
+  broadcast();
+}
+function cardHtml(c,stat,click){
+  return `<div class="card"><img src="${c.img}" alt="${c.n}"><h3>${c.n}</h3>`+
+  STATS.map(s=>click
+    ?`<button class="st" ${V.turn?'':'disabled'} onclick="go('${s}')"><span>${s}</span><b>${c.s[s]}</b></button>`
+    :`<div class="st ${s===stat?'hl':''}"><span>${s}</span><b>${c.s[s]}</b></div>`).join('')+`</div>`;
+}
+function go(s){if(me===0)pick(0,s);else conn.send({t:'pick',s})}
+function next(){showRev=false;draw()}
+function draw(){
+  if(!V)return;
+  if(V.over&&!showRev){
+    app.innerHTML=`<h1 class="${V.over}">${V.over==='win'?'You win! 🏆':'You lose'}</h1><button onclick="location.reload()">Play again</button>`;return;
+  }
+  const bar=`<div class="bar"><span>Your cards: ${V.mine}</span><span>Opponent: ${V.opp}</span></div>`;
+  if(showRev&&V.reveal){
+    const r=V.reveal;
+    app.innerHTML=bar+`<h2 class="${r.res}">${r.res==='tie'?'Tie – cards go back':r.res==='win'?'You win the round':'You lose the round'}</h2>
+    <p>Stat: <b>${r.stat}</b></p>
+    <div class="row">${cardHtml(r.mine,r.stat)}${cardHtml(r.theirs,r.stat)}</div>
+    <button onclick="next()">Continue</button>`;return;
+  }
+  app.innerHTML=bar+`<p>${V.turn?'<b>Your turn</b> – pick a stat':'Opponent is choosing…'}</p>`+cardHtml(V.card,null,true);
+}
+lobby();
+</script></body></html>
