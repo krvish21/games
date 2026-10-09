@@ -1,125 +1,174 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Avengers Trumps</title>
+<title>Avengers Draft & Battle</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#0d1020;color:#eef;font-family:system-ui,sans-serif;min-height:100vh;display:flex;justify-content:center}
-#app{width:100%;max-width:480px;padding:16px;text-align:center}
-h1{color:#e23636;margin:8px 0}
-button,input{font:inherit;padding:12px 16px;border-radius:10px;border:0;margin:6px 0}
+body{margin:0;background:#0d1020;color:#eef;font-family:system-ui,sans-serif;display:flex;justify-content:center}
+#app{width:100%;max-width:480px;padding:12px;text-align:center}
+h1{color:#e23636;margin:8px 0}h2{margin:6px 0}
+button,input{font:inherit;padding:10px 12px;border-radius:10px;border:0;margin:4px 0}
 button{background:#e23636;color:#fff;font-weight:700;cursor:pointer;width:100%}
-button:disabled{opacity:.4}
+button:disabled{opacity:.35}button.on{outline:3px solid #ffd23f}
 input{width:100%;background:#1b2038;color:#fff;text-align:center;letter-spacing:2px}
-.card{background:#1b2038;border:2px solid #333b66;border-radius:14px;padding:10px;flex:1}
-.card img{width:100%;height:190px;object-fit:cover;border-radius:8px;background:#000}
-.card h3{margin:6px 0}
-.st{display:flex;justify-content:space-between;padding:8px 10px;margin:4px 0;border-radius:8px;background:#262d52;text-transform:capitalize;width:100%;color:#fff;font-weight:600}
-button.st:disabled{opacity:1}
-button.st:not(:disabled){background:#2f3a78;border:1px solid #6b7cff}
-.hl{outline:3px solid #ffd23f}
-.row{display:flex;gap:8px}
-.bar{display:flex;justify-content:space-between;font-size:14px;opacity:.85;margin-bottom:8px}
-.win{color:#4cd964}.lose{color:#ff5a5a}
-.small{font-size:13px;opacity:.7}
+.row{display:flex;gap:6px}.row>*{flex:1}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pc,.hero{background:#1b2038;border:2px solid #333b66;border-radius:10px;padding:5px;position:relative;font-size:12px;cursor:pointer}
+.pc img,.hero img{width:100%;height:100px;object-fit:cover;border-radius:6px;background:#000;display:block}
+.pc small{display:block;opacity:.75;font-size:10px;line-height:1.3}
+.pc.taken{opacity:.45}.pc.mine{opacity:1;border-color:#4cd964}
+.pc i{position:absolute;top:4px;left:4px;background:#000a;padding:1px 5px;border-radius:5px;font-size:10px;font-style:normal}
+.hero.dead{opacity:.25;filter:grayscale(1)}.hero.sel{border-color:#ffd23f}.hero.tg{border-color:#ff5a5a;animation:p 1s infinite}
+@keyframes p{50%{box-shadow:0 0 10px #ff5a5a}}
+.hb{height:6px;background:#400;border-radius:4px;margin:3px 0;overflow:hidden}.hb div{height:100%;background:#4cd964}
+.log{font-size:12px;opacity:.85;min-height:64px;margin:8px 0;background:#141830;border-radius:8px;padding:6px;text-align:left}
+.win{color:#4cd964}.lose{color:#ff5a5a}.small{font-size:11px;opacity:.65}
 </style></head>
 <body><div id="app"></div>
 <script>
-const STATS=['intelligence','strength','speed','durability','power','combat'];
 const NAMES=['Iron Man','Captain America','Thor','Hulk','Black Widow','Hawkeye','Vision','Scarlet Witch','Spider-Man','Black Panther','Doctor Strange','Ant-Man','Falcon','War Machine','Captain Marvel','Quicksilver','Wasp','Wolverine','Star-Lord','Nick Fury'];
+const STATS=['intelligence','strength','speed','durability','power','combat'];
+const ABBR=[['intelligence','INT'],['strength','STR'],['speed','SPD'],['durability','DUR'],['power','POW'],['combat','CMB']];
 const API='https://cdn.jsdelivr.net/gh/akabab/superhero-api@0.3.0/api/all.json';
-let peer,conn,me=0,G=null,V=null,msg='',showRev=false,lastSeq=0,code='';
-const $=s=>document.getElementById(s);
-const app=$('app');
+const ORDER=[0,1,1,0,0,1];
+let peer,conn,me=0,G=null,selH=null,selA=null,msg='';
+const app=document.getElementById('app');
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 
+/* ---------- lobby / connection ---------- */
 function lobby(){
-  app.innerHTML=`<h1>Avengers Trumps</h1><p class="small">2-player card duel. Stats from the Superhero API.</p>
-  <button onclick="host()">Host a game</button>
-  <p>or join a friend</p>
-  <input id="c" placeholder="ROOM CODE" maxlength="5">
-  <button onclick="join()">Join game</button><p class="small">${msg}</p>`;
+  app.innerHTML=`<h1>Avengers Draft & Battle</h1><p class="small">Draft 3 heroes, then fight. Stats from the Superhero API.</p>
+  <button onclick="host()">Host a game</button><p>or join a friend</p>
+  <input id="c" placeholder="ROOM CODE" maxlength="5"><button onclick="join()">Join game</button><p class="small">${msg}</p>`;
 }
 function host(){
-  code=Math.random().toString(36).slice(2,7).toUpperCase();
+  const code=Math.random().toString(36).slice(2,7).toUpperCase();
   me=0;peer=new Peer('avtt-'+code);
-  app.innerHTML='<h1>Avengers Trumps</h1><p>Share this code:</p><h1 id="cd">…</h1><p class="small">Waiting for opponent…</p>';
-  peer.on('open',()=>$('cd').textContent=code);
+  app.innerHTML='<h1>Avengers Draft & Battle</h1><p>Share this code:</p><h1 id="cd">…</h1><p class="small">Waiting for opponent…</p>';
+  peer.on('open',()=>document.getElementById('cd').textContent=code);
   peer.on('error',e=>{msg='Error: '+e.type;lobby()});
-  peer.on('connection',c=>{conn=c;c.on('open',startGame);c.on('data',d=>{if(d.t==='pick')pick(1,d.s)});c.on('close',()=>{msg='Opponent left';lobby()})});
+  peer.on('connection',c=>{conn=c;
+    c.on('open',startGame);
+    c.on('data',d=>{if(d.t==='draft')draftPick(1,d.i);if(d.t==='act')act(1,d.h,d.a,d.tg)});
+    c.on('close',()=>{msg='Opponent left';G=null;lobby()})});
 }
 function join(){
-  const c=$('c').value.trim().toUpperCase();if(!c)return;
-  me=1;peer=new Peer();
-  app.innerHTML='<h1>Connecting…</h1>';
+  const c=document.getElementById('c').value.trim().toUpperCase();if(!c)return;
+  me=1;peer=new Peer();app.innerHTML='<h1>Connecting…</h1>';
   peer.on('error',e=>{msg='Could not connect ('+e.type+')';lobby()});
   peer.on('open',()=>{conn=peer.connect('avtt-'+c);
-    conn.on('data',d=>{if(d.t==='view'){V=d.v;if(V.reveal&&V.reveal.seq>lastSeq){lastSeq=V.reveal.seq;showRev=true}draw()}});
-    conn.on('close',()=>{msg='Host left';lobby()})});
+    conn.on('data',d=>{if(d.t==='s'){G=d.g;draw()}});
+    conn.on('close',()=>{msg='Host left';G=null;lobby()})});
 }
-const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+function broadcast(){draw();conn.send({t:'s',g:G})}
+
+/* ---------- game logic (host only) ---------- */
 async function startGame(){
-  app.innerHTML='<h1>Dealing…</h1>';
+  app.innerHTML='<h1>Loading heroes…</h1>';
   try{
     const all=await (await fetch(API)).json();
-    let cards=[];
+    const cards=[];
     for(const n of NAMES){
       const h=all.find(x=>x.name===n);
-      if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'))
-        cards.push({n:h.name,img:h.images.md,s:h.powerstats});
+      if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'&&h.powerstats[s]>0))cards.push({n:h.name,img:h.images.md,s:h.powerstats,by:null});
     }
-    if(cards.length%2)cards.pop();
-    shuffle(cards);
-    const m=cards.length/2;
-    G={hand:[cards.slice(0,m),cards.slice(m)],turn:0,reveal:null,seq:0,over:null};
+    G={phase:'draft',pool:shuffle(cards).slice(0,12),dp:0,team:[[],[]],turn:0,log:['Draft started'],win:null};
     broadcast();
   }catch(e){msg='Could not load hero data: '+e.message;lobby()}
 }
-function viewFor(p){
-  const o=1-p;
-  return{card:G.hand[p][0],mine:G.hand[p].length,opp:G.hand[o].length,turn:G.turn===p,over:G.over===null?null:(G.over===p?'win':'lose'),
-    reveal:G.reveal&&{seq:G.reveal.seq,stat:G.reveal.stat,mine:G.reveal.c[p],theirs:G.reveal.c[o],res:G.reveal.w===-1?'tie':(G.reveal.w===p?'win':'lose')}};
-}
-function broadcast(){
-  const v=viewFor(0);
-  if(v.reveal&&v.reveal.seq>lastSeq){lastSeq=v.reveal.seq;showRev=true}
-  V=v;draw();
-  conn.send({t:'view',v:viewFor(1)});
-}
-function pick(p,s){
-  if(!G||G.over!==null||G.turn!==p)return;
-  const a=G.hand[0][0],b=G.hand[1][0];
-  const d=a.s[s]-b.s[s];
-  const w=d>0?0:d<0?1:-1;
-  G.hand[0].shift();G.hand[1].shift();
-  if(w===-1){G.hand[0].push(a);G.hand[1].push(b)}
-  else{G.hand[w].push(a,b);G.turn=w}
-  G.reveal={seq:++G.seq,stat:s,c:[a,b],w};
-  if(!G.hand[0].length)G.over=1;else if(!G.hand[1].length)G.over=0;
+function draftPick(p,i){
+  if(!G||G.phase!=='draft'||ORDER[G.dp]!==p)return;
+  const c=G.pool[i];if(!c||c.by!==null)return;
+  c.by=p;const mx=Math.round(80+c.s.durability*1.2);
+  G.team[p].push({n:c.n,img:c.img,s:c.s,hp:mx,max:mx,cd:{blast:0,scheme:0},guard:false,weak:0});
+  G.dp++;
+  if(G.dp===6){
+    G.phase='battle';
+    const sp=t=>t.reduce((a,h)=>a+h.s.speed,0);
+    G.turn=sp(G.team[0])>=sp(G.team[1])?0:1;
+    G.log=['Battle begins! Faster team strikes first.'];
+  }
   broadcast();
 }
-function cardHtml(c,stat,click){
-  return `<div class="card"><img src="${c.img}" alt="${c.n}"><h3>${c.n}</h3>`+
-  STATS.map(s=>click
-    ?`<button class="st" ${V.turn?'':'disabled'} onclick="go('${s}')"><span>${s}</span><b>${c.s[s]}</b></button>`
-    :`<div class="st ${s===stat?'hl':''}"><span>${s}</span><b>${c.s[s]}</b></div>`).join('')+`</div>`;
+function dmg(att,def,base,pierce){
+  let d=base*(att.weak>0?0.6:1);
+  if(!pierce)d*=1-def.s.durability/200;
+  if(def.guard)d*=0.5;
+  return Math.max(1,Math.round(d));
 }
-function go(s){if(me===0)pick(0,s);else conn.send({t:'pick',s})}
-function next(){showRev=false;draw()}
-function draw(){
-  if(!V)return;
-  if(V.over&&!showRev){
-    app.innerHTML=`<h1 class="${V.over}">${V.over==='win'?'You win! 🏆':'You lose'}</h1><button onclick="location.reload()">Play again</button>`;return;
+function act(p,i,a,t){
+  if(!G||G.phase!=='battle'||G.turn!==p)return;
+  const h=G.team[p][i];if(!h||h.hp<=0)return;
+  let l;
+  if(a==='guard'){h.guard=true;l=`${h.n} braces for impact 🛡`}
+  else{
+    const en=G.team[1-p][t];
+    if(!en||en.hp<=0)return;
+    if((a==='blast'||a==='scheme')&&h.cd[a]>0)return;
+    if(a==='strike'){
+      if(Math.random()<en.s.speed/300)l=`${en.n} dodges ${h.n}'s strike!`;
+      else{const d=dmg(h,en,h.s.strength*.7+h.s.combat*.5+Math.random()*10);en.hp-=d;l=`${h.n} strikes ${en.n} for ${d}`}
+    }else if(a==='blast'){
+      const d=dmg(h,en,h.s.power*1.3,true);en.hp-=d;h.cd.blast=3;l=`${h.n} BLASTS ${en.n} for ${d}!`;
+    }else if(a==='scheme'){
+      en.weak=3;h.cd.scheme=3;l=`${h.n} outsmarts ${en.n} – weakened 💢`;
+    }else return;
+    if(en.hp<=0)l+=` ${en.n} is down!`;
+    h.guard=false;
   }
-  const bar=`<div class="bar"><span>Your cards: ${V.mine}</span><span>Opponent: ${V.opp}</span></div>`;
-  if(showRev&&V.reveal){
-    const r=V.reveal;
-    app.innerHTML=bar+`<h2 class="${r.res}">${r.res==='tie'?'Tie – cards go back':r.res==='win'?'You win the round':'You lose the round'}</h2>
-    <p>Stat: <b>${r.stat}</b></p>
-    <div class="row">${cardHtml(r.mine,r.stat)}${cardHtml(r.theirs,r.stat)}</div>
-    <button onclick="next()">Continue</button>`;return;
+  G.log.push(l);G.log=G.log.slice(-5);
+  if(G.team[1-p].every(x=>x.hp<=0)){G.phase='over';G.win=p}
+  else{
+    G.turn=1-p;
+    for(const x of G.team[G.turn]){x.cd.blast=Math.max(0,x.cd.blast-1);x.cd.scheme=Math.max(0,x.cd.scheme-1);x.weak=Math.max(0,x.weak-1)}
   }
-  app.innerHTML=bar+`<p>${V.turn?'<b>Your turn</b> – pick a stat':'Opponent is choosing…'}</p>`+cardHtml(V.card,null,true);
+  broadcast();
+}
+
+/* ---------- UI ---------- */
+function dpick(i){
+  if(ORDER[G.dp]!==me||G.pool[i].by!==null)return;
+  me===0?draftPick(0,i):conn.send({t:'draft',i});
+}
+function send(h,a,t){me===0?act(0,h,a,t):conn.send({t:'act',h,a,tg:t})}
+function myTurn(){return G.phase==='battle'&&G.turn===me}
+function selHero(i){if(!myTurn()||G.team[me][i].hp<=0)return;selH=i;selA=null;draw()}
+function selAct(a){if(a==='guard'){const h=selH;selH=selA=null;send(h,'guard',0)}else{selA=a;draw()}}
+function selTarget(t){
+  if(!myTurn()||!selA||selH===null||G.team[1-me][t].hp<=0)return;
+  const h=selH,a=selA;selH=selA=null;send(h,a,t);
+}
+function draw(){if(!G)return;G.phase==='draft'?drawDraft():drawBattle()}
+function drawDraft(){
+  const mine=ORDER[G.dp]===me;
+  app.innerHTML=`<h2>Draft your team</h2><p>${mine?'<b>Your pick!</b>':'Opponent is picking…'} (${G.dp}/6)</p><div class="grid">`+
+  G.pool.map((c,i)=>`<div class="pc ${c.by!==null?'taken':''} ${c.by===me?'mine':''}" onclick="dpick(${i})"><img src="${c.img}" alt=""><b>${c.n}</b><small>${ABBR.map(([k,l])=>l+' '+c.s[k]).join(' · ')}</small>${c.by!==null?`<i>${c.by===me?'YOURS':'THEIRS'}</i>`:''}</div>`).join('')+'</div>'+
+  '<p class="small">Snake draft: you each get 3 heroes. HP comes from durability.</p>';
+}
+function tile(h,i,mineSide){
+  const c=['hero'];
+  if(h.hp<=0)c.push('dead');
+  if(mineSide&&selH===i)c.push('sel');
+  if(!mineSide&&selA&&selA!=='guard'&&h.hp>0&&myTurn())c.push('tg');
+  return `<div class="${c.join(' ')}" onclick="${mineSide?'selHero':'selTarget'}(${i})"><img src="${h.img}" alt=""><b>${h.n}</b><div class="hb"><div style="width:${Math.max(0,h.hp/h.max*100)}%"></div></div><small>${Math.max(0,h.hp)}/${h.max} ${h.guard?'🛡':''}${h.weak>0?'💢':''}</small></div>`;
+}
+function drawBattle(){
+  if(G.turn!==me)selH=selA=null;
+  let panel;
+  if(G.phase==='over')panel=`<h2 class="${G.win===me?'win':'lose'}">${G.win===me?'Victory! 🏆':'Defeat'}</h2><button onclick="location.reload()">Play again</button>`;
+  else if(!myTurn())panel='<p>Opponent is acting…</p>';
+  else if(selH===null)panel='<p><b>Your turn</b> – tap one of your heroes</p>';
+  else{
+    const h=G.team[me][selH];
+    panel=`<p>${h.n}: choose an action${selA&&selA!=='guard'?' – now tap an enemy':''}</p><div class="row">`+
+    [['strike','Strike',0],['blast','Blast',h.cd.blast],['scheme','Scheme',h.cd.scheme],['guard','Guard',0]]
+      .map(([a,l,c])=>`<button class="${selA===a?'on':''}" ${c?'disabled':''} onclick="selAct('${a}')">${l}${c?' ('+c+')':''}</button>`).join('')+
+    '</div><p class="small">Strike: STR+CMB, can be dodged (SPD) · Blast: POW, ignores armor · Scheme: INT, weakens target for 2 turns · Guard: halve damage until it acts again</p>';
+  }
+  app.innerHTML=`<div class="grid">${G.team[1-me].map((h,i)=>tile(h,i,false)).join('')}</div>
+  <div class="log">${G.log.slice(-4).join('<br>')}</div>
+  <div class="grid">${G.team[me].map((h,i)=>tile(h,i,true)).join('')}</div>${panel}`;
 }
 lobby();
 </script></body></html>
