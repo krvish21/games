@@ -1,174 +1,203 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Avengers Draft & Battle</title>
+<title>Marvel Ludo</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#0d1020;color:#eef;font-family:system-ui,sans-serif;display:flex;justify-content:center}
 #app{width:100%;max-width:480px;padding:12px;text-align:center}
 h1{color:#e23636;margin:8px 0}h2{margin:6px 0}
-button,input{font:inherit;padding:10px 12px;border-radius:10px;border:0;margin:4px 0}
+button,input,select{font:inherit;padding:10px 12px;border-radius:10px;border:0;margin:4px 0}
 button{background:#e23636;color:#fff;font-weight:700;cursor:pointer;width:100%}
 button:disabled{opacity:.35}button.on{outline:3px solid #ffd23f}
-input{width:100%;background:#1b2038;color:#fff;text-align:center;letter-spacing:2px}
+input,select{width:100%;background:#1b2038;color:#fff;text-align:center}
 .row{display:flex;gap:6px}.row>*{flex:1}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.pc,.hero{background:#1b2038;border:2px solid #333b66;border-radius:10px;padding:5px;position:relative;font-size:12px;cursor:pointer}
-.pc img,.hero img{width:100%;height:100px;object-fit:cover;border-radius:6px;background:#000;display:block}
-.pc small{display:block;opacity:.75;font-size:10px;line-height:1.3}
-.pc.taken{opacity:.45}.pc.mine{opacity:1;border-color:#4cd964}
-.pc i{position:absolute;top:4px;left:4px;background:#000a;padding:1px 5px;border-radius:5px;font-size:10px;font-style:normal}
-.hero.dead{opacity:.25;filter:grayscale(1)}.hero.sel{border-color:#ffd23f}.hero.tg{border-color:#ff5a5a;animation:p 1s infinite}
-@keyframes p{50%{box-shadow:0 0 10px #ff5a5a}}
-.hb{height:6px;background:#400;border-radius:4px;margin:3px 0;overflow:hidden}.hb div{height:100%;background:#4cd964}
-.log{font-size:12px;opacity:.85;min-height:64px;margin:8px 0;background:#141830;border-radius:8px;padding:6px;text-align:left}
+.pc{background:#1b2038;border:2px solid #333b66;border-radius:10px;padding:5px;font-size:12px;cursor:pointer}
+.pc.sel{border-color:#ffd23f}
+.pc img{width:100%;height:90px;object-fit:cover;border-radius:6px;display:block;background:#000}
+.pc small{display:block;opacity:.75;font-size:10px}
+.tk{display:flex;justify-content:space-between;align-items:center;text-align:left;font-size:13px;background:#1b2038;border-radius:8px;padding:8px;margin:4px 0;border-left:5px solid}
+.tk.go{outline:2px solid #ffd23f}.tk.x{opacity:.35}
+.dice button{font-size:26px;padding:8px}
+.log{font-size:12px;text-align:left;background:#141830;border-radius:8px;padding:6px;min-height:70px;margin:6px 0}
 .win{color:#4cd964}.lose{color:#ff5a5a}.small{font-size:11px;opacity:.65}
 </style></head>
 <body><div id="app"></div>
 <script>
-const NAMES=['Iron Man','Captain America','Thor','Hulk','Black Widow','Hawkeye','Vision','Scarlet Witch','Spider-Man','Black Panther','Doctor Strange','Ant-Man','Falcon','War Machine','Captain Marvel','Quicksilver','Wasp','Wolverine','Star-Lord','Nick Fury'];
+const KIT={'Iron Man':['atk'],'Thor':['atk'],'Hawkeye':['atk'],'Wolverine':['atk','regen'],'Captain America':['shield'],'Vision':['shield'],'Hulk':['trap','rage'],'Black Widow':['trap'],'Spider-Man':['trap'],'Black Panther':['boost','absorb'],'Doctor Strange':['boost'],'Scarlet Witch':['boost']};
+const ICON={atk:'⚔️',shield:'🛡️',boost:'⏩',trap:'🕸️'};
+const PASS={rage:'heals 10 when hurt',absorb:'+3 move when hurt',regen:'+6 HP each turn'};
+const COL=['#e23636','#3b82f6'];
 const STATS=['intelligence','strength','speed','durability','power','combat'];
-const ABBR=[['intelligence','INT'],['strength','STR'],['speed','SPD'],['durability','DUR'],['power','POW'],['combat','CMB']];
 const API='https://cdn.jsdelivr.net/gh/akabab/superhero-api@0.3.0/api/all.json';
-const ORDER=[0,1,1,0,0,1];
-let peer,conn,me=0,G=null,selH=null,selA=null,msg='';
+let peer,conn,me=0,G=null,sel=[],selD=null,msg='';
 const app=document.getElementById('app');
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const r6=()=>1+Math.random()*6|0;
+const tile=(p,prog)=>(p*20+prog)%40;
+const ok=t=>!t.dead&&!t.home&&!t.fz;
 
-/* ---------- lobby / connection ---------- */
+/* ---------- connection ---------- */
 function lobby(){
-  app.innerHTML=`<h1>Avengers Draft & Battle</h1><p class="small">Draft 3 heroes, then fight. Stats from the Superhero API.</p>
+  app.innerHTML=`<h1>Marvel Ludo</h1><p class="small">Race your heroes round the ring to the Gauntlet. Heroes' power tiles help you and hurt rivals.</p>
+  <label class="small">Heroes (tokens) per player</label>
+  <select id="n"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
   <button onclick="host()">Host a game</button><p>or join a friend</p>
   <input id="c" placeholder="ROOM CODE" maxlength="5"><button onclick="join()">Join game</button><p class="small">${msg}</p>`;
 }
+let N=2;
 function host(){
+  N=+document.getElementById('n').value;
   const code=Math.random().toString(36).slice(2,7).toUpperCase();
-  me=0;peer=new Peer('avtt-'+code);
-  app.innerHTML='<h1>Avengers Draft & Battle</h1><p>Share this code:</p><h1 id="cd">…</h1><p class="small">Waiting for opponent…</p>';
+  me=0;peer=new Peer('mludo-'+code);
+  app.innerHTML='<h1>Marvel Ludo</h1><p>Share this code:</p><h1 id="cd">…</h1><p class="small">Waiting for opponent…</p>';
   peer.on('open',()=>document.getElementById('cd').textContent=code);
   peer.on('error',e=>{msg='Error: '+e.type;lobby()});
-  peer.on('connection',c=>{conn=c;
-    c.on('open',startGame);
-    c.on('data',d=>{if(d.t==='draft')draftPick(1,d.i);if(d.t==='act')act(1,d.h,d.a,d.tg)});
+  peer.on('connection',c=>{conn=c;c.on('open',startGame);
+    c.on('data',d=>{if(d.t==='pick')pickSq(1,d.ids);if(d.t==='move')move(1,d.ti,d.di)});
     c.on('close',()=>{msg='Opponent left';G=null;lobby()})});
 }
 function join(){
   const c=document.getElementById('c').value.trim().toUpperCase();if(!c)return;
   me=1;peer=new Peer();app.innerHTML='<h1>Connecting…</h1>';
   peer.on('error',e=>{msg='Could not connect ('+e.type+')';lobby()});
-  peer.on('open',()=>{conn=peer.connect('avtt-'+c);
+  peer.on('open',()=>{conn=peer.connect('mludo-'+c);
     conn.on('data',d=>{if(d.t==='s'){G=d.g;draw()}});
     conn.on('close',()=>{msg='Host left';G=null;lobby()})});
 }
 function broadcast(){draw();conn.send({t:'s',g:G})}
 
-/* ---------- game logic (host only) ---------- */
+/* ---------- rules (host only) ---------- */
 async function startGame(){
   app.innerHTML='<h1>Loading heroes…</h1>';
   try{
     const all=await (await fetch(API)).json();
-    const cards=[];
-    for(const n of NAMES){
-      const h=all.find(x=>x.name===n);
-      if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'&&h.powerstats[s]>0))cards.push({n:h.name,img:h.images.md,s:h.powerstats,by:null});
-    }
-    G={phase:'draft',pool:shuffle(cards).slice(0,12),dp:0,team:[[],[]],turn:0,log:['Draft started'],win:null};
+    const roster=[];
+    for(const n in KIT){const h=all.find(x=>x.name===n);
+      if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'&&h.powerstats[s]>0))roster.push({n,img:h.images.md,s:h.powerstats,k:KIT[n]})}
+    G={phase:'pick',n:N,roster,sq:[null,null],log:[],turn:0};
     broadcast();
   }catch(e){msg='Could not load hero data: '+e.message;lobby()}
 }
-function draftPick(p,i){
-  if(!G||G.phase!=='draft'||ORDER[G.dp]!==p)return;
-  const c=G.pool[i];if(!c||c.by!==null)return;
-  c.by=p;const mx=Math.round(80+c.s.durability*1.2);
-  G.team[p].push({n:c.n,img:c.img,s:c.s,hp:mx,max:mx,cd:{blast:0,scheme:0},guard:false,weak:0});
-  G.dp++;
-  if(G.dp===6){
-    G.phase='battle';
-    const sp=t=>t.reduce((a,h)=>a+h.s.speed,0);
-    G.turn=sp(G.team[0])>=sp(G.team[1])?0:1;
-    G.log=['Battle begins! Faster team strikes first.'];
+function pickSq(p,ids){
+  if(!G||G.phase!=='pick'||G.sq[p]||ids.length!==G.n||new Set(ids).size!==ids.length)return;
+  G.sq[p]=ids.map(i=>G.roster[i]);
+  if(G.sq[0]&&G.sq[1]){
+    const b=Array(40).fill(null),free=shuffle([...Array(40).keys()].filter(i=>i%20));
+    G.sq.forEach((sq,p)=>sq.forEach(h=>{for(let k=0;k<3;k++){const i=free.pop();b[i]={o:p,t:h.k[0],h:h.n,pw:h.s.power}}}));
+    G.board=b;
+    G.tk=G.sq.map(sq=>sq.map(h=>{const m=Math.round(40+h.s.durability*.8);return{n:h.n,s:h.s,k:h.k,hp:m,max:m,prog:0,home:0,dead:0,fz:0,sh:0,bonus:0}}));
+    G.phase='play';G.log=['Game on! Red starts.'];startTurn(0);
   }
   broadcast();
 }
-function dmg(att,def,base,pierce){
-  let d=base*(att.weak>0?0.6:1);
-  if(!pierce)d*=1-def.s.durability/200;
-  if(def.guard)d*=0.5;
-  return Math.max(1,Math.round(d));
+function startTurn(p){
+  G.turn=p;
+  G.tk[p].forEach(t=>{if(t.k[1]==='regen'&&!t.dead)t.hp=Math.min(t.max,t.hp+6)});
+  G.dice=[r6(),r6()];G.used=[0,0];
+  if(!G.tk[p].some(ok)){log('Player '+(p+1)+' has no free hero – turn skipped');endTurn(p)}
 }
-function act(p,i,a,t){
-  if(!G||G.phase!=='battle'||G.turn!==p)return;
-  const h=G.team[p][i];if(!h||h.hp<=0)return;
-  let l;
-  if(a==='guard'){h.guard=true;l=`${h.n} braces for impact 🛡`}
+function endTurn(p){G.tk[p].forEach(t=>t.fz=Math.max(0,t.fz-1));startTurn(1-p)}
+function log(s){G.log.push(s);G.log=G.log.slice(-6)}
+function hurt(t,d){
+  if(t.sh){t.sh=0;return `${t.n}'s shield absorbs it`}
+  t.hp-=d;
+  if(t.hp<=0){t.dead=1;return `${t.n} takes ${d} and is KO'd!`}
+  let x='';
+  if(t.k[1]==='rage'){t.hp=Math.min(t.max,t.hp+10);x=' – RAGE! +10 HP'}
+  if(t.k[1]==='absorb'){t.bonus=3;x=' – absorbed, +3 next move'}
+  return `${t.n} takes ${d}${x}`;
+}
+function move(p,ti,di){
+  if(!G||G.phase!=='play'||G.turn!==p||G.used[di])return;
+  const t=G.tk[p][ti];if(!t||!ok(t))return;
+  G.used[di]=1;
+  const d=G.dice[di]+t.bonus;t.bonus=0;
+  t.prog=Math.min(40,t.prog+d);
+  const L=[`${t.n} moves ${d}`];
+  if(t.prog>=40){t.home=1;L.push('reaches the Gauntlet! 🧤')}
   else{
-    const en=G.team[1-p][t];
-    if(!en||en.hp<=0)return;
-    if((a==='blast'||a==='scheme')&&h.cd[a]>0)return;
-    if(a==='strike'){
-      if(Math.random()<en.s.speed/300)l=`${en.n} dodges ${h.n}'s strike!`;
-      else{const d=dmg(h,en,h.s.strength*.7+h.s.combat*.5+Math.random()*10);en.hp-=d;l=`${h.n} strikes ${en.n} for ${d}`}
-    }else if(a==='blast'){
-      const d=dmg(h,en,h.s.power*1.3,true);en.hp-=d;h.cd.blast=3;l=`${h.n} BLASTS ${en.n} for ${d}!`;
-    }else if(a==='scheme'){
-      en.weak=3;h.cd.scheme=3;l=`${h.n} outsmarts ${en.n} – weakened 💢`;
-    }else return;
-    if(en.hp<=0)l+=` ${en.n} is down!`;
-    h.guard=false;
+    const pos=tile(p,t.prog);
+    const e=G.tk[1-p].find(x=>!x.dead&&!x.home&&tile(1-p,x.prog)===pos&&pos%20);
+    if(e){L.push('captures! '+hurt(e,Math.round(10+t.s.strength*.3)));if(!e.dead)e.prog=Math.max(0,e.prog-4)}
+    const b=G.board[pos];
+    if(b&&b.o!==p){
+      if(b.t==='atk')L.push(`${b.h}'s ⚔️ tile: `+hurt(t,Math.round(12+b.pw*.25)));
+      else if(b.t==='shield'&&t.sh){t.sh=0;L.push(`${b.h}'s 🛡️ tile strips the shield`)}
+      else if(b.t==='boost'){t.prog=Math.max(0,t.prog-3);L.push(`${b.h}'s ⏩ tile throws it back 3`)}
+      else if(b.t==='trap'){t.fz=2;L.push(`caught in ${b.h}'s 🕸️ – frozen next turn`)}
+    }else if(b&&b.o===p){
+      if(b.t==='shield'){t.sh=1;L.push('gains a 🛡️ shield')}
+      else if(b.t==='boost'){t.prog=Math.min(40,t.prog+3);L.push('⏩ +3 boost');if(t.prog>=40){t.home=1;L.push('reaches the Gauntlet! 🧤')}}
+    }
   }
-  G.log.push(l);G.log=G.log.slice(-5);
-  if(G.team[1-p].every(x=>x.hp<=0)){G.phase='over';G.win=p}
-  else{
-    G.turn=1-p;
-    for(const x of G.team[G.turn]){x.cd.blast=Math.max(0,x.cd.blast-1);x.cd.scheme=Math.max(0,x.cd.scheme-1);x.weak=Math.max(0,x.weak-1)}
-  }
+  log(L.join(', '));
+  if(G.tk[p].every(x=>x.dead)){G.phase='over';G.win=1-p}
+  else if(G.tk[1-p].every(x=>x.dead)||G.tk[p].every(x=>x.dead||x.home)){G.phase='over';G.win=p}
+  else if(!G.used.includes(0)||!G.tk[p].some(ok))endTurn(p);
   broadcast();
 }
 
 /* ---------- UI ---------- */
-function dpick(i){
-  if(ORDER[G.dp]!==me||G.pool[i].by!==null)return;
-  me===0?draftPick(0,i):conn.send({t:'draft',i});
+function myTurn(){return G.phase==='play'&&G.turn===me}
+function tog(i){
+  if(sel.includes(i))sel=sel.filter(x=>x!==i);else if(sel.length<G.n)sel.push(i);
+  draw();
 }
-function send(h,a,t){me===0?act(0,h,a,t):conn.send({t:'act',h,a,tg:t})}
-function myTurn(){return G.phase==='battle'&&G.turn===me}
-function selHero(i){if(!myTurn()||G.team[me][i].hp<=0)return;selH=i;selA=null;draw()}
-function selAct(a){if(a==='guard'){const h=selH;selH=selA=null;send(h,'guard',0)}else{selA=a;draw()}}
-function selTarget(t){
-  if(!myTurn()||!selA||selH===null||G.team[1-me][t].hp<=0)return;
-  const h=selH,a=selA;selH=selA=null;send(h,a,t);
+function confirmPick(){me===0?pickSq(0,sel):(conn.send({t:'pick',ids:sel}),G.sq[1]=[]);draw()}
+function die(i){if(myTurn()&&!G.used[i]){selD=i;draw()}}
+function tok(i){
+  if(!myTurn()||selD===null||!ok(G.tk[me][i]))return;
+  const d=selD;selD=null;
+  me===0?move(0,i,d):conn.send({t:'move',ti:i,di:d});
 }
-function draw(){if(!G)return;G.phase==='draft'?drawDraft():drawBattle()}
-function drawDraft(){
-  const mine=ORDER[G.dp]===me;
-  app.innerHTML=`<h2>Draft your team</h2><p>${mine?'<b>Your pick!</b>':'Opponent is picking…'} (${G.dp}/6)</p><div class="grid">`+
-  G.pool.map((c,i)=>`<div class="pc ${c.by!==null?'taken':''} ${c.by===me?'mine':''}" onclick="dpick(${i})"><img src="${c.img}" alt=""><b>${c.n}</b><small>${ABBR.map(([k,l])=>l+' '+c.s[k]).join(' · ')}</small>${c.by!==null?`<i>${c.by===me?'YOURS':'THEIRS'}</i>`:''}</div>`).join('')+'</div>'+
-  '<p class="small">Snake draft: you each get 3 heroes. HP comes from durability.</p>';
+function draw(){
+  if(!G)return;
+  if(G.phase==='pick')return drawPick();
+  if(!myTurn()||(selD!==null&&G.used[selD]))selD=null;
+  drawPlay();
 }
-function tile(h,i,mineSide){
-  const c=['hero'];
-  if(h.hp<=0)c.push('dead');
-  if(mineSide&&selH===i)c.push('sel');
-  if(!mineSide&&selA&&selA!=='guard'&&h.hp>0&&myTurn())c.push('tg');
-  return `<div class="${c.join(' ')}" onclick="${mineSide?'selHero':'selTarget'}(${i})"><img src="${h.img}" alt=""><b>${h.n}</b><div class="hb"><div style="width:${Math.max(0,h.hp/h.max*100)}%"></div></div><small>${Math.max(0,h.hp)}/${h.max} ${h.guard?'🛡':''}${h.weak>0?'💢':''}</small></div>`;
+function drawPick(){
+  if(G.sq[me]){app.innerHTML='<h2>Squad locked in ✅</h2><p>Waiting for opponent…</p>';return}
+  app.innerHTML=`<h2>Choose ${G.n} hero${G.n>1?'es':''}</h2><p class="small">Each hero adds 3 power tiles to the board. Picked ${sel.length}/${G.n}</p><div class="grid">`+
+  G.roster.map((c,i)=>`<div class="pc ${sel.includes(i)?'sel':''}" onclick="tog(${i})"><img src="${c.img}" alt=""><b>${c.n}</b><small>${ICON[c.k[0]]} · HP ${Math.round(40+c.s.durability*.8)} · STR ${c.s.strength} · POW ${c.s.power}</small>${c.k[1]?`<small>${PASS[c.k[1]]}</small>`:''}</div>`).join('')+
+  `</div><button ${sel.length===G.n?'':'disabled'} onclick="confirmPick()">Lock in squad</button>`;
 }
-function drawBattle(){
-  if(G.turn!==me)selH=selA=null;
+function pt(i){const a=i/40*6.2832-1.5708;return[200+150*Math.cos(a),200+150*Math.sin(a)]}
+function svg(){
+  let s='<svg viewBox="0 0 400 400" width="100%"><circle cx="200" cy="200" r="150" fill="none" stroke="#333b66" stroke-width="2"/>';
+  for(let i=0;i<40;i++){
+    const[x,y]=pt(i),b=G.board[i];
+    s+=`<circle cx="${x}" cy="${y}" r="11" fill="#141830" stroke="${b?COL[b.o]:i%20?'#333b66':'#ffd23f'}" stroke-width="2.5"/>`;
+    if(b)s+=`<text x="${x}" y="${y+4}" font-size="11" text-anchor="middle">${ICON[b.t]}</text>`;
+    else if(i%20==0)s+=`<text x="${x}" y="${y+4}" font-size="10" text-anchor="middle" fill="#ffd23f">S</text>`;
+  }
+  s+='<text x="200" y="195" font-size="40" text-anchor="middle">🧤</text><text x="200" y="225" font-size="13" text-anchor="middle" fill="#ffd23f">GAUNTLET</text>';
+  G.tk.forEach((tt,p)=>tt.forEach((t,i)=>{
+    if(t.dead||t.home)return;
+    const[x,y]=pt(tile(p,t.prog));
+    s+=`<circle cx="${x+(p?7:-7)}" cy="${y+(i-1.5)*5}" r="8" fill="${COL[p]}" stroke="#fff" stroke-width="${t.sh?3:1.5}"/><text x="${x+(p?7:-7)}" y="${y+(i-1.5)*5+4}" font-size="10" font-weight="700" text-anchor="middle" fill="#fff">${t.n[0]}</text>`;
+  }));
+  return s+'</svg>';
+}
+function row(t,i,mine){
+  const go=mine&&myTurn()&&selD!==null&&ok(t);
+  const fl=(t.sh?'🛡️':'')+(t.fz?'🕸️':'')+(t.bonus?'⏩':'');
+  return `<div class="tk ${go?'go':''} ${t.dead?'x':''}" style="border-color:${COL[mine?me:1-me]}" ${mine?`onclick="tok(${i})"`:''}>
+  <span><b>${t.n}</b> ${fl}<br><small>${t.dead?'KO':t.home?'HOME 🧤':`HP ${t.hp}/${t.max} · ${t.prog}/40`}</small></span><span>${ICON[t.k[0]]}</span></div>`;
+}
+function drawPlay(){
   let panel;
   if(G.phase==='over')panel=`<h2 class="${G.win===me?'win':'lose'}">${G.win===me?'Victory! 🏆':'Defeat'}</h2><button onclick="location.reload()">Play again</button>`;
-  else if(!myTurn())panel='<p>Opponent is acting…</p>';
-  else if(selH===null)panel='<p><b>Your turn</b> – tap one of your heroes</p>';
-  else{
-    const h=G.team[me][selH];
-    panel=`<p>${h.n}: choose an action${selA&&selA!=='guard'?' – now tap an enemy':''}</p><div class="row">`+
-    [['strike','Strike',0],['blast','Blast',h.cd.blast],['scheme','Scheme',h.cd.scheme],['guard','Guard',0]]
-      .map(([a,l,c])=>`<button class="${selA===a?'on':''}" ${c?'disabled':''} onclick="selAct('${a}')">${l}${c?' ('+c+')':''}</button>`).join('')+
-    '</div><p class="small">Strike: STR+CMB, can be dodged (SPD) · Blast: POW, ignores armor · Scheme: INT, weakens target for 2 turns · Guard: halve damage until it acts again</p>';
-  }
-  app.innerHTML=`<div class="grid">${G.team[1-me].map((h,i)=>tile(h,i,false)).join('')}</div>
-  <div class="log">${G.log.slice(-4).join('<br>')}</div>
-  <div class="grid">${G.team[me].map((h,i)=>tile(h,i,true)).join('')}</div>${panel}`;
+  else if(!myTurn())panel='<p>Opponent is moving…</p>';
+  else panel=`<p><b>Your turn</b> – tap a die, then a hero</p><div class="row dice">${G.dice.map((v,i)=>`<button class="${selD===i?'on':''}" ${G.used[i]?'disabled':''} onclick="die(${i})">🎲 ${v}</button>`).join('')}</div>`;
+  app.innerHTML=`<div class="small">You are <b style="color:${COL[me]}">${me?'Blue':'Red'}</b> · tile owner = border colour. Your tiles help you, theirs hurt you.</div>${svg()}
+  <div class="log">${G.log.slice(-4).join('<br>')}</div>${panel}
+  <div>${G.tk[me].map((t,i)=>row(t,i,1)).join('')}</div>
+  <div class="small">Opponent</div><div>${G.tk[1-me].map((t,i)=>row(t,i,0)).join('')}</div>
+  <p class="small">⚔️ damages rivals · 🛡️ shields you / strips rivals · ⏩ +3 you / −3 rivals · 🕸️ freezes rivals. Landing on a rival hits them (not on S tiles).</p>`;
 }
 lobby();
 </script></body></html>
