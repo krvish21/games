@@ -215,6 +215,8 @@ function randPick(){sel.p1=Math.floor(Math.random()*HEROES.length);showSelect()}
 function mkHero(idx,def){return{idx,def,x:0,y:GROUND,vx:0,vy:0,facing:idx===0?1:-1,maxHp:def.hp,hp:def.hp,energy:0,
   attackCd:0,specialCd:0,hitstun:0,guard:false,onGround:true,dead:false,hitFlash:0,shieldT:0,slowT:0,dashT:0,dashDir:1,dashHit:false,anim:0}}
 function beginMatch(i0,i1){
+  if(i0==null)i0=sel.p0;if(i1==null)i1=sel.p1;
+  if(i0==null||i1==null)return;
   ov.classList.add('hide');menuBtn.classList.add('show');muteBtn.classList.add('show');
   G={ids:[i0,i1],mode:sel.mode,heroes:[mkHero(0,HEROES[i0]),mkHero(1,HEROES[i1])],
      projectiles:[],hazards:[],particles:[],texts:[],wins:[0,0],round:1,timer:75,cd:0,nextT:0,state:'countdown',msg:'',shake:0,matchWinner:0};
