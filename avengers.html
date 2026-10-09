@@ -6,38 +6,83 @@
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#0d1020;color:#eef;font-family:system-ui,sans-serif;display:flex;justify-content:center}
-#app{width:100%;max-width:500px;padding:12px;text-align:center}
+#app{width:100%;max-width:620px;padding:10px;text-align:center}
 h1{color:#e23636;margin:8px 0}h2{margin:6px 0}
 button,input,select{font:inherit;padding:10px 12px;border-radius:10px;border:0;margin:4px 0}
 button{background:#e23636;color:#fff;font-weight:700;cursor:pointer;width:100%}
 button:disabled{opacity:.35}button.on{outline:3px solid #ffd23f}
 input,select{width:100%;background:#1b2038;color:#fff;text-align:center}
-.row{display:flex;gap:6px}.row>*{flex:1}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .pc{background:#1b2038;border:2px solid #333b66;border-radius:10px;padding:5px;font-size:12px;cursor:pointer}
 .pc.sel{border-color:#ffd23f}
 .pc img{width:100%;height:86px;object-fit:cover;border-radius:6px;display:block;background:#000}
 .pc small{display:block;opacity:.75;font-size:10px}
+.hud{display:flex;gap:6px;margin:6px 0}
+.ph{flex:1;background:#1b2038;border:2px solid;border-radius:8px;padding:6px;font-size:13px}
+.ph .st{font-size:16px}
 .tk{display:flex;justify-content:space-between;align-items:center;text-align:left;font-size:13px;background:#1b2038;border-radius:8px;padding:6px 8px;margin:4px 0;border-left:5px solid}
 .tk.go{outline:2px solid #ffd23f;cursor:pointer}
 .tk img{width:30px;height:30px;border-radius:6px;object-fit:cover}
 .tk small{display:block;opacity:.7;font-size:10px}
 .dice{font-size:30px;margin:6px 0}
-.log{font-size:12px;text-align:left;background:#141830;border-radius:8px;padding:6px;min-height:60px;margin:6px 0}
-.hud{display:flex;gap:6px;margin:6px 0}
-.ph{flex:1;background:#1b2038;border:2px solid;border-radius:8px;padding:6px;font-size:13px}
-.ph .st{font-size:16px}
+.log{font-size:12px;text-align:left;background:#141830;border-radius:8px;padding:6px;min-height:56px;margin:6px 0}
 .win{color:#4cd964}.lose{color:#ff5a5a}.small{font-size:11px;opacity:.65}
 .lg{font-size:11px;text-align:left;opacity:.8;margin-top:8px}
 .lg div{margin:2px 0}
+
+/* ---------- Ludo board ---------- */
+.board{position:relative;width:100%;aspect-ratio:1;margin:8px auto;background:#e8ecf5;border-radius:14px;overflow:hidden;box-shadow:0 0 0 4px #333b66,0 8px 24px #0008}
+.bgrid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr)}
+.cell{border:1px solid #cbd3e6;background:#f7f9ff;position:relative;display:flex;align-items:center;justify-content:center}
+.cell.track{background:#f7f9ff}
+.cell.home-red{background:#e23636}
+.cell.home-blue{background:#3b82f6}
+.cell.home-green{background:#22c55e;opacity:.4}
+.cell.home-yellow{background:#eab308;opacity:.4}
+.cell.start-red{background:#ffc2c2}
+.cell.start-blue{background:#c2d2ff}
+.cell .ico{font-size:clamp(10px,2.5vw,20px);line-height:1}
+.cell .star{color:#bb9a1e}
+.yard{position:relative;border-radius:10px}
+.yard.y0{background:#e23636}
+.yard.y1{background:#3b82f6}
+.yard.dim{background:#22c55e;opacity:.35}
+.yard.dim.b{background:#eab308}
+.yin{position:absolute;inset:9%;display:grid;grid-template-columns:1fr 1fr;gap:6%;place-items:center}
+.yin img{width:100%;height:100%;object-fit:cover;border-radius:12%;border:2px solid #0005;background:#000}
+.ylbl{position:absolute;bottom:3%;left:0;right:0;font-weight:800;font-size:clamp(9px,1.9vw,14px);color:#fff;text-shadow:0 1px 3px #000}
+.center{display:flex;align-items:center;justify-content:center;font-size:clamp(16px,5vw,34px);
+  background:conic-gradient(from 45deg,#e23636 0 25%,#22c55e 25% 50%,#eab308 50% 75%,#3b82f6 75% 100%)}
+.center span{filter:drop-shadow(0 1px 2px #000a)}
+.overlay{position:absolute;inset:0;pointer-events:none}
+.tok{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:clamp(9px,1.9vw,15px);border:2px solid #fff;box-shadow:0 1px 4px #000a;z-index:5}
+.tok.go{cursor:pointer;outline:2px solid #ffd23f;pointer-events:auto}
 </style></head>
 <body><div id="app"></div>
 <script>
 /* ---------- Infinity Gauntlet Ludo ----------
-   Race hero tokens around a 24-space ring. Six stone spaces hold the
-   Infinity Stones. Land on one to claim it; capture a rival to send
+   Heroes race around a classic 52-tile Ludo track. Six Infinity Stones
+   sit on the track: land on one to claim it, capture a rival to send
    them home and steal a stone. First to 4 stones performs the Snap. */
-const NSP=24, START=[0,12], STONE_SPOTS=[2,6,10,14,18,22], SAFE=new Set([0,12]), TARGET=4;
+const PATH=[
+ [6,1],[6,2],[6,3],[6,4],[6,5],
+ [5,6],[4,6],[3,6],[2,6],[1,6],
+ [0,6],[0,7],[0,8],
+ [1,8],[2,8],[3,8],[4,8],[5,8],
+ [6,9],[6,10],[6,11],[6,12],[6,13],
+ [6,14],[7,14],[8,14],
+ [8,13],[8,12],[8,11],[8,10],[8,9],
+ [9,8],[10,8],[11,8],[12,8],[13,8],
+ [14,8],[14,7],[14,6],
+ [13,6],[12,6],[11,6],[10,6],[9,6],
+ [8,5],[8,4],[8,3],[8,2],[8,1],
+ [8,0],[7,0],[6,0]
+];
+const PATH_IDX={};PATH.forEach(([r,c],i)=>PATH_IDX[r+','+c]=i);
+const NSP=PATH.length, START=[0,26], STONE_SPOTS=[3,11,19,28,36,44];
+const SAFE=new Set([0,8,13,21,26,34,39,47]);
+const TARGET=4;
 const COL=['#e23636','#3b82f6'];
 const STONES=[
  {id:'power',  name:'Power',   icon:'⚡', desc:'+1 to every die roll'},
@@ -62,7 +107,7 @@ const myTurn=()=>G&&G.phase==='play'&&G.turn===me;
 /* ---------- connection ---------- */
 function lobby(){
   app.innerHTML=`<h1>Marvel Ludo</h1><h2>Infinity Gauntlet</h2>
-  <p class="small">Race your heroes around the ring, claim the six Infinity Stones, and be first to ${TARGET} to Snap. Capture rivals to send them home and steal their stones.</p>
+  <p class="small">Race your heroes around the Ludo track, claim the six Infinity Stones, and be first to ${TARGET} to Snap. Capture rivals to send them home and steal their stones.</p>
   <label class="small">Heroes (tokens) per player</label>
   <select id="n"><option>2</option><option selected>3</option><option>4</option></select>
   <button onclick="host()">Host a game</button><p>or join a friend</p>
@@ -124,20 +169,23 @@ function rollDice(p){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll!==null)return;
   G.raw=r6();
   G.roll=G.raw+(hasStone(p,'power')?1:0);
-  G.used=0;
-  broadcast();
+  G.used=0;broadcast();
 }
 function reroll(p){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used||G.rerolled||!hasStone(p,'mind'))return;
   G.rerolled=true;G.raw=r6();
-  G.roll=G.raw+(hasStone(p,'power')?1:0);
-  broadcast();
+  G.roll=G.raw+(hasStone(p,'power')?1:0);broadcast();
 }
 function move(p,ti){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used)return;
   const t=G.tk[p][ti];if(!t)return;
-  G.used=1;t.prog+=G.roll;
+  G.used=1;
+  const from=t.prog;t.prog+=G.roll;
   const L=[`${t.n} moves ${G.roll}`];
+  for(let s=from+1;s<=t.prog;s++){
+    const st=G.board[(START[p]+s)%NSP];
+    if(st&&st.owner===null){st.owner=p;L.push(`claims the ${st.name} Stone ${st.icon}`)}
+  }
   const pos=posOf(p,t);
   let captured=false;
   if(!SAFE.has(pos)){
@@ -192,39 +240,65 @@ function draw(){if(!G)return;if(G.phase==='pick')return drawPick();drawPlay()}
 function drawPick(){
   if(G.sq[me]){app.innerHTML='<h2>Squad locked in ✅</h2><p>Waiting for opponent…</p>';return}
   app.innerHTML=`<h2>Choose ${G.n} hero${G.n>1?'es':''}</h2>
-  <p class="small">Picked ${sel.length}/${G.n}. Your heroes are your tokens on the ring.</p>
+  <p class="small">Picked ${sel.length}/${G.n}. Your heroes are your tokens on the track.</p>
   <div class="grid">`+
   G.roster.map((c,i)=>`<div class="pc ${sel.includes(i)?'sel':''}" onclick="tog(${i})">
     <img src="${c.img}" alt=""><b>${c.n}</b>
     <small>STR ${c.s.strength} · SPD ${c.s.speed} · POW ${c.s.power}</small></div>`).join('')+
   `</div><button ${sel.length===G.n?'':'disabled'} onclick="confirmPick()">Lock in squad</button>`;
 }
-function pt(i){const a=i/NSP*6.2832-1.5708;return[200+150*Math.cos(a),200+150*Math.sin(a)]}
-function svg(){
-  let s='<svg viewBox="0 0 400 400" width="100%"><circle cx="200" cy="200" r="150" fill="none" stroke="#333b66" stroke-width="2"/>';
-  for(let i=0;i<NSP;i++){
-    const[x,y]=pt(i),st=G.board[i];
-    let stroke=SAFE.has(i)?'#ffd23f':'#333b66',fill='#141830';
-    if(st){fill='#0a0d18';stroke=st.owner===null?'#6b7399':COL[st.owner]}
-    s+=`<circle cx="${x}" cy="${y}" r="13" fill="${fill}" stroke="${stroke}" stroke-width="3"/>`;
-    if(st)s+=`<text x="${x}" y="${y+5}" font-size="13" text-anchor="middle">${st.icon}</text>`;
-    else if(SAFE.has(i))s+=`<text x="${x}" y="${y+4}" font-size="11" text-anchor="middle" fill="#ffd23f">★</text>`;
+
+/* ---------- board ---------- */
+function yardHeroes(p){
+  const imgs=(G.sq[p]||[]).map(h=>`<img src="${h.img}" alt="">`).join('');
+  return `<div class="yin">${imgs}</div><div class="ylbl">${p?'BLUE':'RED'}</div>`;
+}
+function board(){
+  let g='';
+  g+=`<div class="yard y0" style="grid-area:1/1/7/7">${yardHeroes(0)}</div>`;
+  g+=`<div class="yard dim" style="grid-area:1/10/7/16"></div>`;
+  g+=`<div class="yard y1" style="grid-area:10/10/16/16">${yardHeroes(1)}</div>`;
+  g+=`<div class="yard dim b" style="grid-area:10/1/16/7"></div>`;
+  g+=`<div class="center" style="grid-area:7/7/10/10"><span>🧤</span></div>`;
+  for(let r=0;r<15;r++)for(let c=0;c<15;c++){
+    const inYard=(r<6&&c<6)||(r<6&&c>8)||(r>8&&c<6)||(r>8&&c>8);
+    const inCenter=(r>=6&&r<=8&&c>=6&&c<=8);
+    if(inYard||inCenter)continue;
+    let cls='cell',style='';
+    if(r===7&&c>=1&&c<=5)cls+=' home-red';
+    else if(r===7&&c>=9&&c<=13)cls+=' home-blue';
+    else if(c===7&&r>=1&&r<=5)cls+=' home-green';
+    else if(c===7&&r>=9&&r<=13)cls+=' home-yellow';
+    else if(r===6&&c===1)cls+=' start-red';
+    else if(r===8&&c===13)cls+=' start-blue';
+    else cls+=' track';
+    const idx=PATH_IDX[r+','+c];
+    let inner='';
+    if(idx!==undefined){
+      const st=G.board[idx];
+      if(st){const oc=st.owner===null?'#ffd23f':COL[st.owner];style=`;box-shadow:inset 0 0 0 3px ${oc}`;inner=`<span class="ico">${st.icon}</span>`}
+      else if(SAFE.has(idx))inner='<span class="ico star">★</span>';
+    }
+    g+=`<div class="${cls}" style="grid-row:${r+1};grid-column:${c+1}${style}">${inner}</div>`;
   }
-  const by={};
-  G.tk.forEach((tt,p)=>tt.forEach((t,i)=>{const k=posOf(p,t);(by[k]=by[k]||[]).push({p,i,t})}));
-  for(const k in by){
-    const arr=by[k],[x,y]=pt(+k);
+  return `<div class="board"><div class="bgrid">${g}</div><div class="overlay">${tokens()}</div></div>`;
+}
+function tokens(){
+  const groups={};
+  G.tk.forEach((tt,p)=>tt.forEach((t,i)=>{const k=posOf(p,t);(groups[k]=groups[k]||[]).push({p,i,t})}));
+  const CELL=100/15;let h='';
+  for(const k in groups){
+    const [r,c]=PATH[+k],arr=groups[k];
     arr.forEach((o,j)=>{
-      const dx=(j-(arr.length-1)/2)*13;
-      const shield=hasStone(o.p,'space');
-      s+=`<circle cx="${x+dx}" cy="${y}" r="8" fill="${COL[o.p]}" stroke="${shield?'#8fe3ff':'#fff'}" stroke-width="${shield?3:1.5}"/>`;
-      s+=`<text x="${x+dx}" y="${y+4}" font-size="10" font-weight="700" text-anchor="middle" fill="#fff">${o.t.n[0]}</text>`;
+      const off=(j-(arr.length-1)/2)*0.55;
+      const left=(c+0.12+off)*CELL, top=(r+0.12)*CELL, w=CELL*0.76;
+      const clickable=o.p===me&&myTurn()&&G.roll!==null&&!G.used;
+      const bc=hasStone(o.p,'space')?'#8fe3ff':'#fff';
+      h+=`<div class="tok ${clickable?'go':''}" style="left:${left}%;top:${top}%;width:${w}%;height:${w}%;background:${COL[o.p]};border-color:${bc}"
+        ${clickable?`onclick="tok(${o.i})"`:''}>${o.t.n[0]}</div>`;
     });
   }
-  s+='<text x="200" y="188" font-size="34" text-anchor="middle">🧤</text>';
-  s+=`<text x="200" y="212" font-size="12" text-anchor="middle" fill="#ffd23f">FIRST TO ${TARGET}</text>`;
-  s+=`<text x="200" y="230" font-size="12" text-anchor="middle" fill="#9aa3cc">RED ${countStones(0)} · BLUE ${countStones(1)}</text>`;
-  return s+'</svg>';
+  return h;
 }
 function stonesHud(p){
   const own=G.stones.filter(s=>s.owner===p);
@@ -235,7 +309,7 @@ function row(t,i,mine){
   const go=mine&&myTurn()&&G.roll!==null&&!G.used;
   return `<div class="tk ${go?'go':''}" style="border-color:${COL[who]}" ${go?`onclick="tok(${i})"`:''}>
     <img src="${t.img}" alt="">
-    <span style="flex:1;margin-left:8px"><b>${t.n}</b><small>space ${posOf(who,t)}</small></span>
+    <span style="flex:1;margin-left:8px"><b>${t.n}</b><small>tile ${posOf(who,t)}</small></span>
     ${hasStone(who,'space')?'<span title="Space Stone">🌌</span>':''}</div>`;
 }
 function drawPlay(){
@@ -254,13 +328,13 @@ function drawPlay(){
     <div class="ph" style="border-color:${COL[0]}"><b>Red</b> <span class="st">${stonesHud(0)}</span></div>
     <div class="ph" style="border-color:${COL[1]}"><b>Blue</b> <span class="st">${stonesHud(1)}</span></div>
   </div>
-  ${svg()}
-  <div class="log">${G.log.slice(-4).join('<br>')}</div>
+  ${board()}
+  <div class="log">${G.log.slice(-3).join('<br>')}</div>
   ${panel}
   <div class="small">Your heroes</div>${G.tk[me].map((t,i)=>row(t,i,1)).join('')}
   <div class="small">Opponent</div>${G.tk[1-me].map((t,i)=>row(t,i,0)).join('')}
   <div class="lg">${STONES.map(s=>`<div>${s.icon} <b>${s.name}</b> – ${s.desc}</div>`).join('')}
-  <div>★ safe start (no captures) · capture a rival to send them home and steal a stone</div></div>`;
+  <div>★ safe tile (no captures) · pass or land on a stone to claim it · capture a rival to send them home and steal a stone</div></div>`;
 }
 lobby();
 </script></body></html>
