@@ -1,16 +1,19 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Marvel Hero Duel</title>
 <meta name="description" content="Real-time 1v1 Marvel hero arena fighter. Local 2-player or vs CPU.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
 <style>
-*{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
 body{margin:0;background:#070a14;color:#eaeefb;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:10px;
-  padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
-#app{position:relative;width:100%;max-width:960px}
-canvas{display:block;width:100%;height:auto;border-radius:14px;background:#05070f;box-shadow:0 10px 40px #000a,0 0 0 1px #1c2540}
+  display:flex;flex-direction:column;align-items:center;height:100dvh;overflow:hidden;overscroll-behavior:none;
+  -webkit-user-select:none;user-select:none;
+  padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))}
+#app{position:relative;flex:1;min-height:0;width:100%;max-width:960px;display:flex;align-items:center;justify-content:center}
+#stage{position:relative}
+#stage>canvas{display:block;width:100%;height:100%;border-radius:14px;background:#05070f;box-shadow:0 10px 40px #000a,0 0 0 1px #1c2540;touch-action:none}
 button{font:inherit;border:0;border-radius:11px;cursor:pointer;background:#e23636;color:#fff;font-weight:800;padding:12px 16px;transition:filter .12s,transform .06s}
 button:hover{filter:brightness(1.12)}button:active{transform:scale(.97)}
 button:disabled{opacity:.3;cursor:not-allowed}
@@ -27,11 +30,13 @@ button.go{background:linear-gradient(90deg,#e23636,#f97316);font-size:16px}
 .tag{margin:0;color:#9aa6c8;font-size:14px}
 .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;margin-top:4px}
+@media (max-width:430px){.cards{grid-template-columns:repeat(2,1fr)}.menu{gap:8px}.pick{font-size:11px}}
 .card{background:#101731;border:2px solid #26304f;border-radius:12px;padding:8px 6px;display:flex;flex-direction:column;
   align-items:center;gap:3px;color:#eaeefb;font-weight:700;cursor:pointer;transition:border-color .12s,transform .08s}
 .card:hover{border-color:#e23636;transform:translateY(-2px)}
-.card .ce{width:100%;aspect-ratio:16/10;border-radius:9px;display:grid;place-items:center;font-size:34px;
+.card .ce{width:100%;aspect-ratio:16/10;border-radius:9px;display:grid;place-items:center;font-size:34px;overflow:hidden;
   background:linear-gradient(160deg,var(--c),#05070f);box-shadow:inset 0 0 0 1px var(--a)}
+.card .ce img{width:96%;height:96%;object-fit:contain;filter:drop-shadow(0 3px 6px #0009)}
 .card b{font-size:12px}.card small{font-size:9px;opacity:.65;font-weight:600;line-height:1.2}
 .picks{display:flex;gap:8px;width:100%}
 .pick{flex:1;background:#0e142a;border:1px dashed #2b3557;border-radius:10px;padding:8px;font-size:12px;color:#9aa6c8}
@@ -40,37 +45,43 @@ details.how{width:100%;background:#0e142a;border:1px solid #26304f;border-radius
 details.how summary{cursor:pointer;font-weight:700;color:#eaeefb}
 details.how p{margin:6px 0 0;line-height:1.5}
 .kbd{display:inline-block;background:#1b2340;border-radius:4px;padding:0 5px;font-weight:700;color:#fff}
-.ingame{position:absolute;top:12px;display:none;z-index:5}
+.ingame{position:absolute;top:12px;display:none;z-index:6}
 .ingame.show{display:block}
-#mute{right:12px;width:40px;height:40px;padding:0;border-radius:50%;background:#151d38}
+#mute{right:12px;width:42px;height:42px;padding:0;border-radius:50%;background:#151d38}
+#fs{right:64px;width:42px;height:42px;padding:0;border-radius:50%;background:#151d38}
 #menuBtn{left:12px;background:#151d38;padding:8px 12px;font-size:12px;font-weight:700}
-.touch{display:none;width:100%;max-width:960px;margin:10px 0 0;justify-content:space-between;gap:10px;user-select:none;-webkit-user-select:none;touch-action:none}
-@media (pointer:coarse){.touch{display:flex}}
-.tgrp{display:grid;gap:8px;grid-auto-flow:column}
-.touch button{width:62px;height:62px;border-radius:16px;background:#1b2340;font-size:15px;padding:0}
-.touch button.act{background:#e23636}
-.touch button.sp{background:linear-gradient(135deg,#e23636,#fbbf24)}
-footer{margin:14px 0 4px;color:#61708f;font-size:12px}
+.pads{position:fixed;inset:0;z-index:20;display:none;pointer-events:none}
+.pads.show{display:block}
+.pad{position:absolute;bottom:max(10px,env(safe-area-inset-bottom));display:flex;gap:8px}
+.pad.left{left:max(10px,env(safe-area-inset-left))}
+.pad.right{right:max(10px,env(safe-area-inset-right))}
+.pgrid{display:grid;gap:8px;grid-template-columns:repeat(3,1fr)}
+.pb{pointer-events:auto;width:clamp(50px,13.5vw,70px);aspect-ratio:1;border-radius:50%;padding:0;
+  font-size:clamp(18px,4.6vw,24px);line-height:1;display:grid;place-items:center;color:#fff;
+  background:rgba(27,35,64,.55);border:1px solid rgba(255,255,255,.18);box-shadow:0 3px 10px #0006;backdrop-filter:blur(2px)}
+.pb.atk{background:rgba(226,54,54,.6)}
+.pb.sp{background:rgba(251,191,36,.55);color:#1a1200}
+.pb.down{filter:brightness(1.5);transform:scale(.94)}
+#rotate{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:30;
+  background:#1b2340e6;color:#eaeefb;font-size:12px;font-weight:700;padding:7px 14px;border-radius:999px;
+  display:none;box-shadow:0 4px 14px #000a;pointer-events:none}
+#rotate.show{display:block;animation:rfade 5s forwards}
+@keyframes rfade{0%,70%{opacity:1}100%{opacity:0}}
+footer{margin:0;color:#61708f;font-size:12px;padding:6px 0 2px}
+@media (pointer:coarse){footer{display:none}}
 </style></head>
 <body>
 <div id="app">
-  <canvas id="cv"></canvas>
-  <button id="menuBtn" class="ingame" onclick="toMenu()">‹ Menu</button>
-  <button id="mute" class="ingame" onclick="toggleMute()">🔊</button>
-  <div id="ov"></div>
-</div>
-<div class="touch" id="touch">
-  <div class="tgrp">
-    <button data-k="a">◀</button>
-    <button data-k="d">▶</button>
-    <button data-k="s">🛡</button>
-  </div>
-  <div class="tgrp">
-    <button data-k="w">⤒</button>
-    <button data-k="f" class="act">ATK</button>
-    <button data-k="g" class="sp">SP</button>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <button id="menuBtn" class="ingame" onclick="toMenu()">‹ Menu</button>
+    <button id="fs" class="ingame" onclick="toggleFS()">⛶</button>
+    <button id="mute" class="ingame" onclick="toggleMute()">🔊</button>
+    <div id="ov"></div>
   </div>
 </div>
+<div class="pads" id="pads"></div>
+<div id="rotate">↻ Rotate your phone for a bigger arena</div>
 <footer>Marvel Hero Duel · 1v1 local &amp; CPU</footer>
 <script>
 /* MARVEL HERO DUEL
@@ -82,34 +93,55 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const rnd=(a,b)=>a+Math.random()*(b-a);
 
 const HEROES=[
- {id:'ironman',name:'Iron Man',color:'#c81e1e',accent:'#fde047',emoji:'🤖',hp:100,speed:305,jump:770,
-  basic:{kind:'projectile',name:'Repulsor',dmg:7,cd:.34,color:'#67e8f9',speed:780,r:9,life:1.6},
-  special:{name:'Unibeam',cost:55,cd:4.5,kind:'beam',dmg:5,tick:.11,life:.55,w:520,h:34,color:'#a5f3fc'}},
- {id:'thor',name:'Thor',color:'#1d4ed8',accent:'#cbd5e1',emoji:'🔨',hp:118,speed:272,jump:730,
-  basic:{kind:'melee',name:'Hammer',dmg:13,cd:.5,reach:94,h:74,kb:340},
-  special:{name:'Thunder Call',cost:55,cd:4,kind:'strike',dmg:22,delay:.5,r:72,kb:300}},
- {id:'hulk',name:'Hulk',color:'#15803d',accent:'#86efac',emoji:'💪',hp:150,speed:232,jump:705,
-  basic:{kind:'melee',name:'Smash',dmg:11,cd:.55,reach:88,h:80,kb:430},
-  special:{name:'Gamma Quake',cost:50,cd:4.5,kind:'aoe',dmg:16,r:185,kb:520,launch:520,color:'#84cc16'}},
- {id:'spidey',name:'Spider-Man',color:'#b91c1c',accent:'#3b82f6',emoji:'🕷️',hp:95,speed:385,jump:825,
+ {id:'spiderman',spr:'spiderman/5',ref:{x:0,y:0,w:126,h:96},name:'Spider-Man',color:'#b91c1c',accent:'#3b82f6',emoji:'🕷️',hp:95,speed:385,jump:825,size:128,
   basic:{kind:'projectile',name:'Web Shot',dmg:5,cd:.4,color:'#f8fafc',speed:830,r:8,life:1.4,slow:2.5},
   special:{name:'Web Zip',cost:45,cd:3.5,kind:'dash',dmg:15,kb:360,speed:1150,color:'#e2e8f0'}},
- {id:'cap',name:'Captain America',color:'#1e40af',accent:'#dc2626',emoji:'🛡️',hp:112,speed:302,jump:765,
+ {id:'hulk',spr:'hulk/1',ref:{x:2,y:2,w:130,h:122},name:'Hulk',color:'#15803d',accent:'#86efac',emoji:'💪',hp:150,speed:232,jump:705,size:172,
+  basic:{kind:'melee',name:'Smash',dmg:11,cd:.55,reach:88,h:80,kb:430},
+  special:{name:'Gamma Quake',cost:50,cd:4.5,kind:'aoe',dmg:16,r:185,kb:520,launch:520,color:'#84cc16'}},
+ {id:'cap',spr:'captain_america/1',ref:{x:3,y:2,w:104,h:164},name:'Captain America',color:'#1e40af',accent:'#dc2626',emoji:'🛡️',hp:112,speed:302,jump:765,size:138,
   basic:{kind:'melee',name:'Shield Bash',dmg:12,cd:.48,reach:92,h:72,kb:365},
   special:{name:'Shield Ricochet',cost:50,cd:4,kind:'boomerang',dmg:15,speed:780,r:16,life:2.4,color:'#dc2626'}},
- {id:'strange',name:'Doctor Strange',color:'#7c3aed',accent:'#f59e0b',emoji:'🔮',hp:100,speed:285,jump:745,
-  basic:{kind:'projectile',name:'Mystic Bolt',dmg:8,cd:.4,color:'#f59e0b',speed:710,r:10,life:1.6},
-  special:{name:'Mirror Warp',cost:50,cd:4,kind:'warp',dmg:16,kb:340,shield:2,color:'#a78bfa'}},
+ {id:'wolverine',spr:'wolverine/1',ref:{x:5,y:11,w:113,h:99},name:'Wolverine',color:'#eab308',accent:'#3b82f6',emoji:'⚔️',hp:108,speed:340,jump:785,size:126,
+  basic:{kind:'melee',name:'Claw Slash',dmg:9,cd:.32,reach:82,h:66,kb:300},
+  special:{name:'Berserker Dash',cost:45,cd:3.2,kind:'dash',dmg:17,kb:400,speed:1230,color:'#fde047'}},
+ {id:'venom',spr:'venom/8',ref:{x:4,y:5,w:202,h:117},name:'Venom',color:'#111827',accent:'#a855f7',emoji:'🕸️',hp:145,speed:268,jump:720,size:152,
+  basic:{kind:'melee',name:'Symbiote Claw',dmg:14,cd:.6,reach:96,h:82,kb:440},
+  special:{name:'Venom Bite',cost:50,cd:4.2,kind:'strike',dmg:24,delay:.45,r:78,kb:340}},
+ {id:'warmachine',spr:'warmachine/1',ref:{x:0,y:0,w:182,h:146},name:'War Machine',color:'#334155',accent:'#fbbf24',emoji:'🤖',hp:118,speed:300,jump:755,size:146,
+  basic:{kind:'projectile',name:'Repulsor',dmg:7,cd:.34,color:'#67e8f9',speed:780,r:9,life:1.6},
+  special:{name:'Unibeam',cost:55,cd:4.5,kind:'beam',dmg:5,tick:.11,life:.55,w:520,h:34,color:'#a5f3fc'}},
 ];
+
+/* character sprites: transparent animated GIFs from a public Marvel vs Capcom
+   sprite set (served via jsdelivr). One idle animation per hero; `ref` is the
+   trimmed bounding box of the animation so we can scale and plant feet on the
+   ground. If an image fails to load, vector art is the fallback. */
+const SPRITE_BASE='https://cdn.jsdelivr.net/gh/Marcos-SCO/Marvel-vs-Capcom-select-screen@HEAD/img/gifs/';
+const spriteCache={};
+function getSprite(def){
+  if(spriteCache[def.id])return spriteCache[def.id];
+  const s={img:new Image(),ready:false,bb:def.ref||null};
+  spriteCache[def.id]=s;
+  s.img.onload=()=>{s.ready=true};
+  s.img.onerror=()=>{s.ready=false};
+  s.img.src=SPRITE_BASE+def.spr+'.gif';
+  return s;
+}
 
 const KM=[{l:'a',r:'d',u:'w',g:'s',a:'f',s:'g'},{l:'arrowleft',r:'arrowright',u:'arrowup',g:'arrowdown',a:'k',s:'l'}];
 const HANDLED=new Set(['arrowleft','arrowright','arrowup','arrowdown','a','d','w','s','f','g','k','l']);
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 const ov=document.getElementById('ov');
-const menuBtn=document.getElementById('menuBtn'),muteBtn=document.getElementById('mute');
+const appEl=document.getElementById('app'),stage=document.getElementById('stage'),padsEl=document.getElementById('pads');
+const menuBtn=document.getElementById('menuBtn'),muteBtn=document.getElementById('mute'),rotateEl=document.getElementById('rotate');
+const isTouch=()=>matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0;
 function fit(){const dpr=Math.min(2,window.devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}
-fit();addEventListener('resize',fit);
+function layout(){const aw=appEl.clientWidth,ah=appEl.clientHeight;if(!aw||!ah)return;const s=Math.min(aw/W,ah/H);stage.style.width=(W*s)+'px';stage.style.height=(H*s)+'px'}
+function relayout(){fit();layout()}
+relayout();addEventListener('resize',relayout);addEventListener('orientationchange',()=>setTimeout(relayout,180));
+function toggleFS(){if(document.fullscreenElement)document.exitFullscreen();else if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{})}
 
 /* input */
 const down={},edge={};
@@ -120,13 +152,29 @@ function humanInput(i){const m=KM[i];return{left:!!down[m.l],right:!!down[m.r],j
 const NOIN={left:false,right:false,jump:false,guard:false,attack:false,special:false};
 function press(k){if(!down[k])edge[k]=true;down[k]=true}
 function release(k){down[k]=false}
-document.querySelectorAll('#touch button').forEach(b=>{
-  const k=b.dataset.k;
-  const dn=e=>{e.preventDefault();press(k)};
-  const up=e=>{e.preventDefault();release(k)};
-  b.addEventListener('pointerdown',dn);b.addEventListener('pointerup',up);
-  b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up);
-});
+function releaseAll(){for(const k in down)down[k]=false}
+const GLYPH={a:'◀',d:'▶',w:'▲',s:'🛡',f:'⚔️',g:'✦',arrowleft:'◀',arrowright:'▶',arrowup:'▲',arrowdown:'🛡',k:'⚔️',l:'✦'};
+const pb=(k,cls)=>`<button class="pb ${cls||''}" data-k="${k}">${GLYPH[k]}</button>`;
+function buildPads(){
+  padsEl.innerHTML='';
+  if(!isTouch())return;
+  if(sel.mode==='2p'){
+    padsEl.innerHTML=`<div class="pad left"><div class="pgrid two">${pb('s')}${pb('g','sp')}${pb('f','atk')}${pb('a')}${pb('w')}${pb('d')}</div></div>`+
+      `<div class="pad right"><div class="pgrid two">${pb('arrowdown')}${pb('l','sp')}${pb('k','atk')}${pb('arrowleft')}${pb('arrowup')}${pb('arrowright')}</div></div>`;
+  }else{
+    padsEl.innerHTML=`<div class="pad left"><div class="pgrid">${pb('a')}${pb('w')}${pb('d')}</div></div>`+
+      `<div class="pad right"><div class="pgrid">${pb('s')}${pb('f','atk')}${pb('g','sp')}</div></div>`;
+  }
+}
+const showPads=()=>{if(isTouch()&&padsEl.innerHTML)padsEl.classList.add('show')};
+const hidePads=()=>{padsEl.classList.remove('show');releaseAll()};
+padsEl.addEventListener('pointerdown',e=>{const b=e.target.closest('.pb');if(!b)return;e.preventDefault();
+  try{b.setPointerCapture(e.pointerId)}catch(_){}press(b.dataset.k);b.classList.add('down')});
+const padUp=e=>{const b=e.target.closest('.pb');if(!b)return;release(b.dataset.k);b.classList.remove('down')};
+padsEl.addEventListener('pointerup',padUp);
+padsEl.addEventListener('pointercancel',padUp);
+addEventListener('blur',releaseAll);
+addEventListener('contextmenu',e=>{if(e.target.closest('.pads')||e.target.closest('canvas'))e.preventDefault()});
 
 /* audio */
 let AC=null,muted=false;
@@ -167,8 +215,10 @@ function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=(n>>16)+amt,g=((
 /* menus */
 let sel={mode:'cpu',p0:null,p1:null,picking:0};
 let G=null;
+function showIngame(on){document.querySelectorAll('.ingame').forEach(b=>b.classList.toggle('show',on))}
+function maybeHintRotate(){if(isTouch()&&innerHeight>innerWidth){rotateEl.classList.add('show');setTimeout(()=>rotateEl.classList.remove('show'),5200)}}
 function showMenu(){
-  G=null;menuBtn.classList.remove('show');muteBtn.classList.remove('show');
+  G=null;showIngame(false);hidePads();
   ov.classList.remove('hide');
   ov.innerHTML=`<div class="menu">
     <h1>MARVEL <span>HERO DUEL</span></h1>
@@ -180,14 +230,17 @@ function showMenu(){
     <details class="how"><summary>How to play</summary>
       <p><b>Player 1:</b> <span class="kbd">A</span><span class="kbd">D</span> move · <span class="kbd">W</span> jump · <span class="kbd">S</span> guard · <span class="kbd">F</span> attack · <span class="kbd">G</span> special</p>
       <p><b>Player 2:</b> <span class="kbd">←</span><span class="kbd">→</span> move · <span class="kbd">↑</span> jump · <span class="kbd">↓</span> guard · <span class="kbd">K</span> attack · <span class="kbd">L</span> special</p>
-      <p>Guard cuts damage to 20% but roots you. Specials cost energy (built over time and by trading hits) and have cooldowns. Whittle your rival down — first to win two rounds takes the duel. On touch screens, buttons appear below the arena for Player 1.</p>
+      <p>Guard cuts damage to 20% but roots you. Specials cost energy (built over time and by trading hits) and have cooldowns. Whittle your rival down — first to win two rounds takes the duel.</p>
+      <p>On a phone or tablet, translucent buttons appear over the arena — Player 1 on the left, Player 2 mirrored on the right for local 2-player. Rotate to landscape for a bigger arena, or tap ⛶ to go fullscreen.</p>
     </details>
   </div>`;
 }
 function chooseMode(m){sel={mode:m,p0:null,p1:null,picking:0};showSelect()}
 function cardHTML(hi){const h=HEROES[hi];
   return `<button class="card" onclick="pickHero(${hi})">
-    <div class="ce" style="--c:${h.color};--a:${h.accent}">${h.emoji}</div>
+    <div class="ce" style="--c:${h.color};--a:${h.accent}">
+      <img src="${SPRITE_BASE+h.spr+'.gif'}" alt="" loading="lazy" onerror="this.parentNode.textContent='${h.emoji}'">
+    </div>
     <b>${h.name}</b><small>${h.basic.name} · ${h.special.name}</small></button>`}
 function showSelect(){
   const both=sel.p0!=null&&sel.p1!=null;
@@ -217,7 +270,8 @@ function mkHero(idx,def){return{idx,def,x:0,y:GROUND,vx:0,vy:0,facing:idx===0?1:
 function beginMatch(i0,i1){
   if(i0==null)i0=sel.p0;if(i1==null)i1=sel.p1;
   if(i0==null||i1==null)return;
-  ov.classList.add('hide');menuBtn.classList.add('show');muteBtn.classList.add('show');
+  getSprite(HEROES[i0]);getSprite(HEROES[i1]);
+  ov.classList.add('hide');showIngame(true);buildPads();showPads();maybeHintRotate();
   G={ids:[i0,i1],mode:sel.mode,heroes:[mkHero(0,HEROES[i0]),mkHero(1,HEROES[i1])],
      projectiles:[],hazards:[],particles:[],texts:[],wins:[0,0],round:1,timer:75,cd:0,nextT:0,state:'countdown',msg:'',shake:0,matchWinner:0};
   startRound();
@@ -238,7 +292,7 @@ function endRound(w){
 }
 function matchOver(w){
   G.state='matchover';G.matchWinner=w;sfx('win');
-  ov.classList.remove('hide');menuBtn.classList.remove('show');muteBtn.classList.remove('show');
+  ov.classList.remove('hide');showIngame(false);hidePads();
   ov.innerHTML=`<div class="menu">
     <h1 class="win">${G.heroes[w].def.name} WINS!</h1>
     <p class="tag">Rounds ${G.wins[0]} – ${G.wins[1]}</p>
@@ -450,9 +504,7 @@ function drawBG(){
   ctx.fillStyle='#1c2747';ctx.fillRect(0,GROUND,W,3);
   ctx.fillStyle='#111a33';ctx.fillRect(0,GROUND+4,W,1);
 }
-function drawHero(h){
-  const x=h.x,y=h.y;
-  ctx.save();ctx.globalAlpha=.32;ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(x,GROUND+7,27,8,0,0,7);ctx.fill();ctx.restore();
+function drawVectorHero(h,x,y){
   ctx.save();ctx.translate(x,y);
   if(h.hitFlash>0){ctx.globalAlpha=.9;ctx.filter='brightness(2.4) saturate(.6)'}
   ctx.fillStyle=shade(h.def.color,-34);ctx.fillRect(-16,-32,11,32);ctx.fillRect(5,-32,11,32);
@@ -465,6 +517,28 @@ function drawHero(h){
   ctx.fillStyle='#0b1020';ctx.fillRect(h.facing>0?1:-11,-86,9,6);
   ctx.font='22px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(h.def.emoji,0,-47);
   ctx.restore();
+}
+function drawSpriteHero(h,x,y,s){
+  const sc=h.def.size/s.bb.h;
+  const nw=s.img.naturalWidth*sc,nh=s.img.naturalHeight*sc;
+  const ax=-(s.bb.x*sc+s.bb.w*sc/2),ay=-(s.bb.y*sc+s.bb.h*sc);
+  const t=performance.now()/1000;
+  const bob=(h.onGround&&!h.dead)?Math.sin(t*4+h.idx)*1.6:0;
+  const lean=h.anim>0?h.facing*h.anim*70:0;
+  ctx.save();
+  if(h.hitFlash>0)ctx.filter='brightness(2.4) saturate(.6)';
+  else if(h.dead)ctx.filter='grayscale(.55) brightness(.72)';
+  ctx.translate(x+lean,y+bob);
+  ctx.scale(h.facing,1);
+  ctx.drawImage(s.img,ax,ay,nw,nh);
+  ctx.restore();
+}
+function drawHero(h){
+  const x=h.x,y=h.y;
+  ctx.save();ctx.globalAlpha=.32;ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(x,GROUND+7,Math.max(22,h.def.size*.2),8,0,0,7);ctx.fill();ctx.restore();
+  const s=spriteCache[h.def.id];
+  if(s&&s.ready&&s.bb)drawSpriteHero(h,x,y,s);else drawVectorHero(h,x,y);
   if(h.shieldT>0){ctx.save();ctx.globalAlpha=.35+Math.sin(performance.now()/90)*.12;ctx.fillStyle='#a78bfa';
     ctx.beginPath();ctx.arc(x,y-42,40,0,7);ctx.fill();ctx.restore()}
   if(h.guard){ctx.save();ctx.strokeStyle=h.def.accent;ctx.lineWidth=5;ctx.globalAlpha=.85;
@@ -559,6 +633,7 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 showMenu();
+HEROES.forEach(getSprite);
 requestAnimationFrame(loop);
 </script>
 </body></html>
