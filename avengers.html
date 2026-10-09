@@ -63,8 +63,11 @@ details.lg div{margin:3px 0}
   background:conic-gradient(from 45deg,#e23636 0 25%,#22c55e 25% 50%,#eab308 50% 75%,#3b82f6 75% 100%)}
 .center span{filter:drop-shadow(0 1px 2px #000a)}
 .overlay{position:absolute;inset:0;pointer-events:none}
-.tok{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  color:#fff;font-weight:800;font-size:clamp(9px,1.9vw,15px);border:2px solid #fff;box-shadow:0 1px 4px #000a;z-index:5}
+.tok{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  color:#fff;font-weight:800;border:2px solid #fff;box-shadow:0 1px 4px #000a;z-index:5;
+  transition:left .1s linear,top .1s linear,transform .08s;will-change:left,top}
+.tok img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.tok.hop{transform:scale(1.2)}
 .tok.go{cursor:pointer;outline:2px solid #ffd23f;pointer-events:auto}
 
 /* ---------- flash effects ---------- */
@@ -113,7 +116,7 @@ const STONES=[
  {id:'space',  name:'Space',   icon:'🌌', desc:'your heroes cannot be captured'},
  {id:'time',   name:'Time',    icon:'⏳', desc:'roll a 6 to move again'},
  {id:'mind',   name:'Mind',    icon:'🧠', desc:'reroll your die once per turn'},
- {id:'reality',name:'Reality', icon:'🔴', desc:'pass or land on a rival stone to steal it'},
+ {id:'reality',name:'Reality', icon:'🔴', desc:'land exactly on a rival stone to steal it'},
  {id:'soul',   name:'Soul',    icon:'🟠', desc:'your stones cannot be stolen'},
 ];
 const HERO_NAMES=['Iron Man','Thor','Hulk','Captain America','Black Widow','Hawkeye','Spider-Man','Wolverine','Black Panther','Doctor Strange','Scarlet Witch','Vision'];
@@ -184,7 +187,7 @@ function pickSq(p,ids){
     G.board={};G.stones.forEach(s=>G.board[s.space]=s);
     G.tk=G.sq.map(sq=>sq.map(h=>({n:h.n,img:h.img,prog:0})));
     G.phase='play';G.six=0;G.turn=0;G.roll=null;G.raw=null;G.used=0;G.rerolled=false;
-    G.fx=[];G.fxN=0;seenFx=0;
+    G.fx=[];G.fxN=0;seenFx=0;shown={};
     G.log=['Game on! Red goes first.'];
   }
   broadcast();
@@ -257,13 +260,8 @@ function reroll(p){
 function move(p,ti){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used)return;
   const t=G.tk[p][ti];if(!t)return;
-  G.used=1;
-  const from=t.prog;t.prog+=G.roll;
+  G.used=1;t.prog+=G.roll;
   const L=[`${t.n} moves ${G.roll}`];
-  for(let s=from+1;s<=t.prog;s++){
-    const st=G.board[(START[p]+s)%NSP];
-    if(st&&st.owner===null){st.owner=p;L.push(`claims the ${st.name} Stone ${st.icon}`);emitFx('claim',`${st.name} Stone!`,st.icon)}
-  }
   const pos=posOf(p,t);
   let captured=false;
   if(!SAFE.has(pos)){
@@ -279,7 +277,10 @@ function move(p,ti){
     else{const s=steal(1-p,p);if(s){L.push(`steals the ${s.name} Stone ${s.icon}`);emitFx('steal',`Stole ${s.name} Stone`,s.icon)}}
   }
   const st=G.board[pos];
-  if(st&&st.owner===1-p&&hasStone(p,'reality')){st.owner=p;L.push(`Reality warps the ${st.name} Stone away ${st.icon}`);emitFx('steal',`Reality steals ${st.name}`,'🔴')}
+  if(st){
+    if(st.owner===null){st.owner=p;L.push(`lands exactly on the ${st.name} Stone ${st.icon}`);emitFx('claim',`${st.name} Stone!`,st.icon)}
+    else if(st.owner===1-p&&hasStone(p,'reality')){st.owner=p;L.push(`Reality warps the ${st.name} Stone away ${st.icon}`);emitFx('steal',`Reality steals ${st.name}`,'🔴')}
+  }
   log(L.join(', '));
   if(countStones(p)>=TARGET){G.phase='over';G.win=p;emitFx('win',`${p?'Blue':'Red'} SNAPS!`,'🧤');broadcast();return}
   const extra=G.raw===6&&hasStone(p,'time')&&(G.six||0)<2;
@@ -310,7 +311,7 @@ function confirmPick(){
 function rollBtn(){if(!myTurn()||G.roll!==null)return;me===0?rollDice(0):conn.send({t:'roll'})}
 function rerollBtn(){if(!myTurn()||G.roll===null||G.used||G.rerolled)return;me===0?reroll(0):conn.send({t:'reroll'})}
 function tok(i){if(!myTurn()||G.roll===null||G.used)return;me===0?move(0,i):conn.send({t:'move',ti:i})}
-function draw(){if(!G)return;if(G.phase==='pick')return drawPick();drawPlay();runFx()}
+function draw(){if(!G)return;if(G.phase==='pick')return drawPick();drawPlay();animatePieces();runFx()}
 
 function drawPick(){
   if(G.sq[me]){app.innerHTML='<h2>Squad locked in ✅</h2><p>Waiting for opponent…</p>';return}
@@ -362,22 +363,53 @@ function board(){
   }
   return `<div class="board"><div class="bgrid">${g}</div><div class="overlay">${tokens()}</div></div>`;
 }
+const CELL=100/15;
+function tokenStyle(p,i,prog){
+  const idx=((START[p]+prog)%NSP+NSP)%NSP,[r,c]=PATH[idx];
+  const off=(i-(G.tk[p].length-1)/2)*0.22+(p?0.14:-0.14);
+  return {left:(c+0.14+off*0.4)*CELL, top:(r+0.14+off*0.6)*CELL, w:CELL*0.72};
+}
 function tokens(){
-  const groups={};
-  G.tk.forEach((tt,p)=>tt.forEach((t,i)=>{const k=posOf(p,t);(groups[k]=groups[k]||[]).push({p,i,t})}));
-  const CELL=100/15;let h='';
-  for(const k in groups){
-    const [r,c]=PATH[+k],arr=groups[k];
-    arr.forEach((o,j)=>{
-      const off=(j-(arr.length-1)/2)*0.55;
-      const left=(c+0.12+off)*CELL, top=(r+0.12)*CELL, w=CELL*0.76;
-      const clickable=o.p===me&&myTurn()&&G.roll!==null&&!G.used;
-      const bc=hasStone(o.p,'space')?'#8fe3ff':'#fff';
-      h+=`<div class="tok ${clickable?'go':''}" style="left:${left}%;top:${top}%;width:${w}%;height:${w}%;background:${COL[o.p]};border-color:${bc}"
-        ${clickable?`onclick="tok(${o.i})"`:''}>${o.t.n[0]}</div>`;
-    });
-  }
+  let h='';
+  for(let p=0;p<2;p++)G.tk[p].forEach((t,i)=>{
+    const s=tokenStyle(p,i,t.prog);
+    const clickable=p===me&&myTurn()&&G.roll!==null&&!G.used;
+    const bc=hasStone(p,'space')?'#8fe3ff':'#fff';
+    h+=`<div class="tok ${clickable?'go':''}" data-k="${p}-${i}" style="left:${s.left}%;top:${s.top}%;width:${s.w}%;height:${s.w}%;background:${COL[p]};border-color:${bc}"
+      ${clickable?`onclick="tok(${i})"`:''}><img src="${t.img}" alt=""></div>`;
+  });
   return h;
+}
+let shown={};
+function animatePieces(){
+  if(!G||!G.tk)return;
+  if(typeof document==='undefined'||!document.querySelector)return;
+  for(let p=0;p<2;p++)G.tk[p].forEach((t,i)=>{
+    const key=p+'-'+i, np=t.prog, op=shown[key];
+    shown[key]=np;
+    if(op===undefined||op===np)return;
+    const el=document.querySelector('.tok[data-k="'+key+'"]');
+    if(!el)return;
+    const dest=prog=>{const s=tokenStyle(p,i,prog);el.style.left=s.left+'%';el.style.top=s.top+'%'};
+    if(np>op&&np-op<=8){
+      el.style.transition='none';dest(op);void el.offsetWidth;
+      el.style.transition='left .1s linear,top .1s linear,transform .08s';
+      let k=op;
+      const tick=()=>{k++;dest(k);el.classList.add('hop');setTimeout(()=>el.classList.remove('hop'),80);if(k<np)setTimeout(tick,100)};
+      setTimeout(tick,15);
+    }else if(np<op){
+      dest(op);
+      el.style.transition='opacity .18s,transform .18s';
+      el.style.opacity='0';el.style.transform='scale(.35)';
+      setTimeout(()=>{
+        dest(np);
+        el.style.transition='none';
+        el.style.opacity='1';el.style.transform='scale(1)';
+        void el.offsetWidth;
+        el.style.transition='left .12s,top .12s,transform .12s';
+      },200);
+    }
+  });
 }
 function stoneIcons(p){
   const own=G.stones.filter(s=>s.owner===p);
@@ -405,7 +437,7 @@ function drawPlay(){
   <div class="log">${G.log.slice(-3).join('<br>')}</div>
   <details class="lg"><summary>Stones &amp; rules</summary>
     ${STONES.map(s=>`<div>${s.icon} <b>${s.name}</b> – ${s.desc}</div>`).join('')}
-    <div>★ safe tile (no captures) · pass or land on a stone to claim it · capture a rival to send them home and steal a stone</div>
+    <div>★ safe tile (no captures) · land exactly on a stone to claim it · capture a rival to send them home and steal a stone</div>
   </details>`;
 }
 lobby();
