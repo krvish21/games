@@ -10,31 +10,35 @@ body{margin:0;background:#0d1020;color:#eef;font-family:system-ui,sans-serif;dis
 h1{color:#e23636;margin:8px 0}h2{margin:6px 0}
 button,input,select{font:inherit;padding:10px 12px;border-radius:10px;border:0;margin:4px 0}
 button{background:#e23636;color:#fff;font-weight:700;cursor:pointer;width:100%}
-button:disabled{opacity:.35}button.on{outline:3px solid #ffd23f}
+button:disabled{opacity:.35}
 input,select{width:100%;background:#1b2038;color:#fff;text-align:center}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .pc{background:#1b2038;border:2px solid #333b66;border-radius:10px;padding:5px;font-size:12px;cursor:pointer}
 .pc.sel{border-color:#ffd23f}
 .pc img{width:100%;height:86px;object-fit:cover;border-radius:6px;display:block;background:#000}
 .pc small{display:block;opacity:.75;font-size:10px}
-.hud{display:flex;gap:6px;margin:6px 0}
-.ph{flex:1;background:#1b2038;border:2px solid;border-radius:8px;padding:6px;font-size:13px}
-.ph .st{font-size:16px}
-.tk{display:flex;justify-content:space-between;align-items:center;text-align:left;font-size:13px;background:#1b2038;border-radius:8px;padding:6px 8px;margin:4px 0;border-left:5px solid}
-.tk.go{outline:2px solid #ffd23f;cursor:pointer}
-.tk img{width:30px;height:30px;border-radius:6px;object-fit:cover}
-.tk small{display:block;opacity:.7;font-size:10px}
-.dice{font-size:30px;margin:6px 0}
-.log{font-size:12px;text-align:left;background:#141830;border-radius:8px;padding:6px;min-height:56px;margin:6px 0}
-.win{color:#4cd964}.lose{color:#ff5a5a}.small{font-size:11px;opacity:.65}
-.lg{font-size:11px;text-align:left;opacity:.8;margin-top:8px}
-.lg div{margin:2px 0}
+.win{color:#4cd964}.lose{color:#ff5a5a}.small{font-size:11px;opacity:.7}
+
+/* top bar + panel */
+.bar{display:flex;align-items:center;gap:6px;margin:6px 0}
+.side{flex:1;background:#1b2038;border-radius:10px;padding:5px 8px;font-size:12px;border-bottom:3px solid}
+.side .pname{font-weight:800;font-size:11px;letter-spacing:.5px;opacity:.9}
+.side .pstones{font-size:17px;min-height:22px;letter-spacing:1px}
+.side.right{text-align:right}
+.turnpill{flex:1;font-weight:800;font-size:12px;background:#141830;border:1px solid #333b66;border-radius:10px;padding:8px 4px;color:#ffd23f}
+.panel{background:#141830;border-radius:12px;padding:10px;margin:8px 0;min-height:70px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px}
+.roll{font-size:20px;padding:14px;letter-spacing:1px;background:linear-gradient(90deg,#e23636,#f97316)}
+.die{display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:14px;background:#fff;color:#111;font-size:30px;font-weight:900;box-shadow:0 4px 0 #97a}
+.mute{position:fixed;top:10px;right:10px;width:44px;height:44px;border-radius:50%;background:#1b2038;padding:0;font-size:18px;z-index:60}
+.log{font-size:11px;text-align:left;background:#0f1326;border-radius:8px;padding:6px;min-height:36px;margin:6px 0;opacity:.9}
+details.lg{font-size:11px;text-align:left;opacity:.85;margin-top:6px;background:#141830;border-radius:8px;padding:6px}
+details.lg summary{cursor:pointer;font-weight:700}
+details.lg div{margin:3px 0}
 
 /* ---------- Ludo board ---------- */
 .board{position:relative;width:100%;aspect-ratio:1;margin:8px auto;background:#e8ecf5;border-radius:14px;overflow:hidden;box-shadow:0 0 0 4px #333b66,0 8px 24px #0008}
 .bgrid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr)}
 .cell{border:1px solid #cbd3e6;background:#f7f9ff;position:relative;display:flex;align-items:center;justify-content:center}
-.cell.track{background:#f7f9ff}
 .cell.home-red{background:#e23636}
 .cell.home-blue{background:#3b82f6}
 .cell.home-green{background:#22c55e;opacity:.4}
@@ -48,9 +52,13 @@ input,select{width:100%;background:#1b2038;color:#fff;text-align:center}
 .yard.y1{background:#3b82f6}
 .yard.dim{background:#22c55e;opacity:.35}
 .yard.dim.b{background:#eab308}
-.yin{position:absolute;inset:9%;display:grid;grid-template-columns:1fr 1fr;gap:6%;place-items:center}
-.yin img{width:100%;height:100%;object-fit:cover;border-radius:12%;border:2px solid #0005;background:#000}
 .ylbl{position:absolute;bottom:3%;left:0;right:0;font-weight:800;font-size:clamp(9px,1.9vw,14px);color:#fff;text-shadow:0 1px 3px #000}
+.yin{position:absolute;inset:9%;display:grid;grid-template-columns:1fr 1fr;gap:7%;place-items:center}
+.hpiece{position:relative;width:100%;aspect-ratio:1;border-radius:50%;overflow:hidden;border:3px solid rgba(0,0,0,.4);background:#000;transition:transform .12s}
+.hpiece img{width:100%;height:100%;object-fit:cover;display:block}
+.hnum{position:absolute;right:2px;bottom:1px;background:#000c;color:#fff;font-size:9px;line-height:1.5;padding:0 4px;border-radius:6px}
+.hpiece.go{border-color:#ffd23f;box-shadow:0 0 12px #ffd23f;animation:pulse 1s infinite;cursor:pointer}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
 .center{display:flex;align-items:center;justify-content:center;font-size:clamp(16px,5vw,34px);
   background:conic-gradient(from 45deg,#e23636 0 25%,#22c55e 25% 50%,#eab308 50% 75%,#3b82f6 75% 100%)}
 .center span{filter:drop-shadow(0 1px 2px #000a)}
@@ -58,13 +66,29 @@ input,select{width:100%;background:#1b2038;color:#fff;text-align:center}
 .tok{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;
   color:#fff;font-weight:800;font-size:clamp(9px,1.9vw,15px);border:2px solid #fff;box-shadow:0 1px 4px #000a;z-index:5}
 .tok.go{cursor:pointer;outline:2px solid #ffd23f;pointer-events:auto}
+
+/* ---------- flash effects ---------- */
+#fx{position:fixed;transform:translate(-50%,-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;z-index:9999}
+.fx-msg{display:flex;align-items:center;gap:8px;font-weight:900;font-size:clamp(15px,4.2vw,26px);padding:7px 18px;border-radius:14px;color:#fff;
+  background:rgba(10,13,24,.86);box-shadow:0 4px 18px #000c;white-space:nowrap;animation:fxpop 1.4s ease forwards;text-shadow:0 2px 6px #000}
+.fx-msg .fi{font-size:1.2em}
+.fx-msg.claim{background:linear-gradient(90deg,#7c3aed,#f59e0b)}
+.fx-msg.capture{background:linear-gradient(90deg,#7f1d1d,#e23636)}
+.fx-msg.steal{background:linear-gradient(90deg,#b45309,#fbbf24)}
+.fx-msg.shield{background:linear-gradient(90deg,#0369a1,#22d3ee);color:#06283a;text-shadow:none}
+.fx-msg.soul{background:linear-gradient(90deg,#b45309,#fb923c)}
+.fx-msg.win{background:linear-gradient(90deg,#f59e0b,#fde047);color:#3a2a00;text-shadow:none;font-size:clamp(20px,6vw,36px)}
+@keyframes fxpop{0%{opacity:0;transform:scale(.4)}13%{opacity:1;transform:scale(1.18)}26%{transform:scale(1)}70%{opacity:1}100%{opacity:0;transform:translateY(-30px) scale(1)}}
+.board.shake{animation:shake .42s}
+@keyframes shake{0%,100%{transform:translate(0,0)}20%{transform:translate(-7px,4px)}40%{transform:translate(7px,-4px)}60%{transform:translate(-5px,-3px)}80%{transform:translate(5px,3px)}}
 </style></head>
 <body><div id="app"></div>
 <script>
 /* ---------- Infinity Gauntlet Ludo ----------
    Heroes race around a classic 52-tile Ludo track. Six Infinity Stones
-   sit on the track: land on one to claim it, capture a rival to send
-   them home and steal a stone. First to 4 stones performs the Snap. */
+   sit on the track: pass or land on one to claim it, capture a rival to
+   send them home and steal a stone. First to 4 stones performs the Snap.
+   Move by tapping a hero piece in your own base. */
 const PATH=[
  [6,1],[6,2],[6,3],[6,4],[6,5],
  [5,6],[4,6],[3,6],[2,6],[1,6],
@@ -89,13 +113,14 @@ const STONES=[
  {id:'space',  name:'Space',   icon:'🌌', desc:'your heroes cannot be captured'},
  {id:'time',   name:'Time',    icon:'⏳', desc:'roll a 6 to move again'},
  {id:'mind',   name:'Mind',    icon:'🧠', desc:'reroll your die once per turn'},
- {id:'reality',name:'Reality', icon:'🔴', desc:'land on a rival stone to steal it'},
+ {id:'reality',name:'Reality', icon:'🔴', desc:'pass or land on a rival stone to steal it'},
  {id:'soul',   name:'Soul',    icon:'🟠', desc:'your stones cannot be stolen'},
 ];
 const HERO_NAMES=['Iron Man','Thor','Hulk','Captain America','Black Widow','Hawkeye','Spider-Man','Wolverine','Black Panther','Doctor Strange','Scarlet Witch','Vision'];
 const STATS=['intelligence','strength','speed','durability','power','combat'];
 const API='https://cdn.jsdelivr.net/gh/akabab/superhero-api@0.3.0/api/all.json';
 let peer,conn,me=0,G=null,sel=[],N=3,msg='';
+let AC=null,muted=false,seenFx=0;
 const app=document.getElementById('app');
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const r6=()=>1+Math.random()*6|0;
@@ -146,7 +171,7 @@ async function startGame(){
     const roster=[];
     for(const n of HERO_NAMES){const h=all.find(x=>x.name===n);
       if(h&&STATS.every(s=>typeof h.powerstats[s]==='number'&&h.powerstats[s]>0))roster.push({n,img:h.images.md,s:h.powerstats})}
-    G={phase:'pick',n:N,roster,sq:[null,null],log:[],turn:0,stones:[],board:{},tk:null};
+    G={phase:'pick',n:N,roster,sq:[null,null],log:[],turn:0,stones:[],board:{},tk:null,fx:[],fxN:0};
     broadcast();
   }catch(e){msg='Could not load hero data: '+e.message;lobby()}
 }
@@ -159,9 +184,58 @@ function pickSq(p,ids){
     G.board={};G.stones.forEach(s=>G.board[s.space]=s);
     G.tk=G.sq.map(sq=>sq.map(h=>({n:h.n,img:h.img,prog:0})));
     G.phase='play';G.six=0;G.turn=0;G.roll=null;G.raw=null;G.used=0;G.rerolled=false;
+    G.fx=[];G.fxN=0;seenFx=0;
     G.log=['Game on! Red goes first.'];
   }
   broadcast();
+}
+
+/* ---------- effects ---------- */
+function emitFx(kind,text,icon){if(!G.fx)G.fx=[];G.fxN=(G.fxN||0)+1;G.fx.push({id:G.fxN,kind,text,icon});if(G.fx.length>10)G.fx.shift()}
+function toggleMute(){muted=!muted;draw()}
+function playSound(kind){
+  if(muted||typeof window==='undefined')return;
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const t=AC.currentTime;
+    const beep=(f,st,dur,ty,vol,to)=>{const o=AC.createOscillator(),g=AC.createGain();o.type=ty||'sine';
+      o.frequency.setValueAtTime(f,t+st);if(to)o.frequency.exponentialRampToValueAtTime(to,t+st+dur);
+      g.gain.setValueAtTime(.0001,t+st);g.gain.exponentialRampToValueAtTime(vol||.14,t+st+.012);
+      g.gain.exponentialRampToValueAtTime(.0001,t+st+dur);o.connect(g);g.connect(AC.destination);o.start(t+st);o.stop(t+st+dur+.03)};
+    if(kind==='roll'){beep(200,0,.05,'square',.08);beep(300,.05,.05,'square',.08)}
+    else if(kind==='claim'){beep(523,0,.1,'triangle',.16);beep(784,.09,.14,'triangle',.16)}
+    else if(kind==='capture'){beep(240,0,.32,'sawtooth',.2,70);beep(120,0,.36,'square',.12,50)}
+    else if(kind==='steal'){beep(700,0,.1,'square',.14);beep(460,.11,.14,'square',.14)}
+    else if(kind==='shield'){beep(320,0,.22,'sine',.13,640)}
+    else if(kind==='soul'){beep(180,0,.4,'sine',.12,480)}
+    else if(kind==='win'){[523,659,784,1047].forEach((f,i)=>beep(f,i*.12,.2,'triangle',.18))}
+  }catch(e){}
+}
+function showFlash(f){
+  playSound(f.kind);
+  if(f.kind==='roll')return;
+  if(typeof document==='undefined'||!document.querySelector)return;
+  const board=document.querySelector('.board');if(!board)return;
+  const r=board.getBoundingClientRect();
+  let layer=document.getElementById('fx');
+  if(!layer){layer=document.createElement('div');layer.id='fx';document.body.appendChild(layer)}
+  layer.style.left=(r.left+r.width/2)+'px';
+  layer.style.top=(r.top+r.height/2)+'px';
+  const m=document.createElement('div');
+  m.className='fx-msg '+(f.kind||'');
+  m.innerHTML=(f.icon?`<span class="fi">${f.icon}</span>`:'')+(f.text||'');
+  layer.appendChild(m);
+  if(f.kind==='capture'||f.kind==='steal'){board.classList.add('shake');setTimeout(()=>board.classList.remove('shake'),430)}
+  setTimeout(()=>m.remove(),1400);
+}
+function runFx(){
+  if(!G||!G.fx||!G.fx.length)return;
+  const max=G.fx[G.fx.length-1].id;
+  const news=G.fx.filter(f=>f.id>seenFx);
+  if(!news.length)return;
+  seenFx=max;
+  news.forEach((f,i)=>setTimeout(()=>{try{showFlash(f)}catch(e){}},i*320));
 }
 
 /* ---------- rules (host only) ---------- */
@@ -169,12 +243,16 @@ function rollDice(p){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll!==null)return;
   G.raw=r6();
   G.roll=G.raw+(hasStone(p,'power')?1:0);
-  G.used=0;broadcast();
+  G.used=0;
+  emitFx('roll',String(G.roll),'🎲');
+  broadcast();
 }
 function reroll(p){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used||G.rerolled||!hasStone(p,'mind'))return;
   G.rerolled=true;G.raw=r6();
-  G.roll=G.raw+(hasStone(p,'power')?1:0);broadcast();
+  G.roll=G.raw+(hasStone(p,'power')?1:0);
+  emitFx('roll',String(G.roll),'🎲');
+  broadcast();
 }
 function move(p,ti){
   if(!G||G.phase!=='play'||G.turn!==p||G.roll===null||G.used)return;
@@ -184,29 +262,26 @@ function move(p,ti){
   const L=[`${t.n} moves ${G.roll}`];
   for(let s=from+1;s<=t.prog;s++){
     const st=G.board[(START[p]+s)%NSP];
-    if(st&&st.owner===null){st.owner=p;L.push(`claims the ${st.name} Stone ${st.icon}`)}
+    if(st&&st.owner===null){st.owner=p;L.push(`claims the ${st.name} Stone ${st.icon}`);emitFx('claim',`${st.name} Stone!`,st.icon)}
   }
   const pos=posOf(p,t);
   let captured=false;
   if(!SAFE.has(pos)){
     G.tk[1-p].forEach(f=>{
       if(posOf(1-p,f)===pos){
-        if(hasStone(1-p,'space'))L.push(`${f.n} is shielded by the Space Stone`);
-        else{f.prog=0;captured=true;L.push(`captures ${f.n}!`)}
+        if(hasStone(1-p,'space')){L.push(`${f.n} is shielded by the Space Stone`);emitFx('shield',`${f.n} shielded`,'🌌')}
+        else{f.prog=0;captured=true;L.push(`captures ${f.n}!`);emitFx('capture',`Captured ${f.n}!`,'⚔️')}
       }
     });
   }
   if(captured){
-    if(hasStone(1-p,'soul'))L.push('the Soul Stone protects their stones');
-    else{const s=steal(1-p,p);if(s)L.push(`steals the ${s.name} Stone ${s.icon}`)}
+    if(hasStone(1-p,'soul')){L.push('the Soul Stone protects their stones');emitFx('soul','Soul Stone protects','🟠')}
+    else{const s=steal(1-p,p);if(s){L.push(`steals the ${s.name} Stone ${s.icon}`);emitFx('steal',`Stole ${s.name} Stone`,s.icon)}}
   }
   const st=G.board[pos];
-  if(st){
-    if(st.owner===null){st.owner=p;L.push(`claims the ${st.name} Stone ${st.icon}`)}
-    else if(st.owner===1-p&&hasStone(p,'reality')){st.owner=p;L.push(`Reality warps the ${st.name} Stone away ${st.icon}`)}
-  }
+  if(st&&st.owner===1-p&&hasStone(p,'reality')){st.owner=p;L.push(`Reality warps the ${st.name} Stone away ${st.icon}`);emitFx('steal',`Reality steals ${st.name}`,'🔴')}
   log(L.join(', '));
-  if(countStones(p)>=TARGET){G.phase='over';G.win=p;broadcast();return}
+  if(countStones(p)>=TARGET){G.phase='over';G.win=p;emitFx('win',`${p?'Blue':'Red'} SNAPS!`,'🧤');broadcast();return}
   const extra=G.raw===6&&hasStone(p,'time')&&(G.six||0)<2;
   if(extra)G.six=(G.six||0)+1;
   if(extra)startTurn(p);else endTurn(p);
@@ -235,12 +310,12 @@ function confirmPick(){
 function rollBtn(){if(!myTurn()||G.roll!==null)return;me===0?rollDice(0):conn.send({t:'roll'})}
 function rerollBtn(){if(!myTurn()||G.roll===null||G.used||G.rerolled)return;me===0?reroll(0):conn.send({t:'reroll'})}
 function tok(i){if(!myTurn()||G.roll===null||G.used)return;me===0?move(0,i):conn.send({t:'move',ti:i})}
-function draw(){if(!G)return;if(G.phase==='pick')return drawPick();drawPlay()}
+function draw(){if(!G)return;if(G.phase==='pick')return drawPick();drawPlay();runFx()}
 
 function drawPick(){
   if(G.sq[me]){app.innerHTML='<h2>Squad locked in ✅</h2><p>Waiting for opponent…</p>';return}
   app.innerHTML=`<h2>Choose ${G.n} hero${G.n>1?'es':''}</h2>
-  <p class="small">Picked ${sel.length}/${G.n}. Your heroes are your tokens on the track.</p>
+  <p class="small">Picked ${sel.length}/${G.n}. Your heroes are your pieces in your base.</p>
   <div class="grid">`+
   G.roster.map((c,i)=>`<div class="pc ${sel.includes(i)?'sel':''}" onclick="tog(${i})">
     <img src="${c.img}" alt=""><b>${c.n}</b>
@@ -250,8 +325,12 @@ function drawPick(){
 
 /* ---------- board ---------- */
 function yardHeroes(p){
-  const imgs=(G.sq[p]||[]).map(h=>`<img src="${h.img}" alt="">`).join('');
-  return `<div class="yin">${imgs}</div><div class="ylbl">${p?'BLUE':'RED'}</div>`;
+  const items=G.tk[p].map((t,i)=>{
+    const go=p===me&&myTurn()&&G.roll!==null&&!G.used;
+    return `<div class="hpiece ${go?'go':''}" ${go?`onclick="tok(${i})"`:''}>
+      <img src="${t.img}" alt=""><span class="hnum">${posOf(p,t)}</span></div>`;
+  }).join('');
+  return `<div class="yin">${items}</div><div class="ylbl">${p?'BLUE':'RED'}</div>`;
 }
 function board(){
   let g='';
@@ -300,41 +379,34 @@ function tokens(){
   }
   return h;
 }
-function stonesHud(p){
+function stoneIcons(p){
   const own=G.stones.filter(s=>s.owner===p);
-  return own.length?own.map(s=>`<span title="${s.name}: ${s.desc}">${s.icon}</span>`).join(''):'<span class="small">— none —</span>';
-}
-function row(t,i,mine){
-  const who=mine?me:1-me;
-  const go=mine&&myTurn()&&G.roll!==null&&!G.used;
-  return `<div class="tk ${go?'go':''}" style="border-color:${COL[who]}" ${go?`onclick="tok(${i})"`:''}>
-    <img src="${t.img}" alt="">
-    <span style="flex:1;margin-left:8px"><b>${t.n}</b><small>tile ${posOf(who,t)}</small></span>
-    ${hasStone(who,'space')?'<span title="Space Stone">🌌</span>':''}</div>`;
+  return own.length?own.map(s=>`<span title="${s.name}: ${s.desc}">${s.icon}</span>`).join(''):'<span class="small">—</span>';
 }
 function drawPlay(){
-  let panel;
-  if(G.phase==='over')panel=`<h2 class="${G.win===me?'win':'lose'}">${G.win===me?'Snap! You win 🧤':'Defeat'}</h2><button onclick="location.reload()">Play again</button>`;
-  else if(!myTurn())panel='<p>Opponent is moving…</p>';
-  else if(G.roll===null)panel=`<p><b>Your turn</b> – roll the die</p><button onclick="rollBtn()">🎲 Roll</button>`;
-  else{
-    const mind=hasStone(me,'mind');
-    panel=`<p><b>Your turn</b> – tap a hero to move</p><div class="dice">🎲 ${G.roll}${hasStone(me,'power')?' <span class="small">(+1 Power)</span>':''}</div>`+
-      (mind&&!G.rerolled&&!G.used?`<button onclick="rerollBtn()">🧠 Reroll</button>`:'');
-  }
+  const over=G.phase==='over';
+  const pill=over?'GAME OVER':(myTurn()?'YOUR TURN':'WAITING…');
+  let action;
+  if(over)action=`<h2 class="${G.win===me?'win':'lose'}">${G.win===me?'SNAP! You win 🧤':'Defeat'}</h2><button onclick="location.reload()">Play again</button>`;
+  else if(!myTurn())action=`<div class="small">Opponent is moving…</div>`;
+  else if(G.roll===null)action=`<button class="roll" onclick="rollBtn()">🎲 ROLL</button>`;
+  else action=`<div class="die">${G.roll}</div>
+    <div class="small">${hasStone(me,'power')?'Power +1 · ':''}tap a hero in your base</div>
+    ${hasStone(me,'mind')&&!G.rerolled&&!G.used?'<button onclick="rerollBtn()">🧠 Reroll</button>':''}`;
   app.innerHTML=`
-  <div class="small">You are <b style="color:${COL[me]}">${me?'Blue':'Red'}</b> · first to ${TARGET} Infinity Stones wins the Snap</div>
-  <div class="hud">
-    <div class="ph" style="border-color:${COL[0]}"><b>Red</b> <span class="st">${stonesHud(0)}</span></div>
-    <div class="ph" style="border-color:${COL[1]}"><b>Blue</b> <span class="st">${stonesHud(1)}</span></div>
+  <button class="mute" onclick="toggleMute()">${muted?'🔇':'🔊'}</button>
+  <div class="bar">
+    <div class="side" style="border-color:${COL[0]}"><div class="pname">RED</div><div class="pstones">${stoneIcons(0)}</div></div>
+    <div class="turnpill">${pill}</div>
+    <div class="side right" style="border-color:${COL[1]}"><div class="pname">BLUE</div><div class="pstones">${stoneIcons(1)}</div></div>
   </div>
   ${board()}
+  <div class="panel">${action}</div>
   <div class="log">${G.log.slice(-3).join('<br>')}</div>
-  ${panel}
-  <div class="small">Your heroes</div>${G.tk[me].map((t,i)=>row(t,i,1)).join('')}
-  <div class="small">Opponent</div>${G.tk[1-me].map((t,i)=>row(t,i,0)).join('')}
-  <div class="lg">${STONES.map(s=>`<div>${s.icon} <b>${s.name}</b> – ${s.desc}</div>`).join('')}
-  <div>★ safe tile (no captures) · pass or land on a stone to claim it · capture a rival to send them home and steal a stone</div></div>`;
+  <details class="lg"><summary>Stones &amp; rules</summary>
+    ${STONES.map(s=>`<div>${s.icon} <b>${s.name}</b> – ${s.desc}</div>`).join('')}
+    <div>★ safe tile (no captures) · pass or land on a stone to claim it · capture a rival to send them home and steal a stone</div>
+  </details>`;
 }
 lobby();
 </script></body></html>
