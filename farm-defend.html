@@ -1,0 +1,89 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Farm & Defend</title>
+<style>
+:root{--bg:#f4f1e8;--fg:#2b2b2b;--card:#fff;--bd:#d8d2bf;--ac:#e0a526;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d211b;--fg:#eee;--card:#2a2f27;--bd:#444b3f}}
+:root[data-theme="dark"]{--bg:#1d211b;--fg:#eee;--card:#2a2f27;--bd:#444b3f}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif}
+#app{max-width:480px;margin:auto;padding:8px}
+#hud{display:flex;justify-content:space-between;font-weight:600;padding:4px 2px}
+canvas{width:100%;display:block;border-radius:10px;border:2px solid var(--bd);touch-action:manipulation}
+#msg{min-height:20px;text-align:center;font-size:13px;margin:4px 0}
+h4{margin:8px 0 4px;font-size:13px;opacity:.7}
+.row{display:grid;gap:6px}
+button{font:inherit;color:var(--fg);background:var(--card);border:2px solid var(--bd);border-radius:10px;padding:8px 2px;line-height:1.2}
+button.on{border-color:var(--ac);background:rgba(224,165,38,.2)}
+button:disabled{opacity:.45}
+.plot{height:64px;background:#7a5230;border-color:#5a3a20;color:#fff;font-size:12px}
+.ripe{background:#3d8f3d;animation:p .7s infinite alternate}
+@keyframes p{to{transform:scale(1.06)}}
+#go{width:100%;margin-top:8px;background:var(--ac);color:#222;font-weight:700;padding:12px}
+</style></head><body><div id="app">
+<div id="hud"><span id="hp"></span><span id="wv"></span><span id="rs"></span></div>
+<canvas id="c" width="320" height="280"></canvas>
+<div id="msg"></div>
+<button id="go">Start Wave 1</button>
+<h4>🌱 SEEDS (tap, then tap plots)</h4><div class="row" id="seeds" style="grid-template-columns:repeat(3,1fr)"></div>
+<h4>🚜 FARM</h4><div class="row" id="plots" style="grid-template-columns:repeat(3,1fr)"></div>
+<h4>⚔️ WEAPONS (tap, then tap the field)</h4><div class="row" id="wps" style="grid-template-columns:repeat(3,1fr)"></div>
+</div>
+<script>
+const T=40,C=document.getElementById('c'),g=C.getContext('2d'),$=id=>document.getElementById(id);
+const P=[[0,1],[6,1],[6,3],[1,3],[1,5],[7,5]],pts=P.map(p=>[p[0]*T+20,p[1]*T+20]);
+const L=pts.slice(1).map((b,i)=>Math.hypot(b[0]-pts[i][0],b[1]-pts[i][1])),TL=L.reduce((a,b)=>a+b);
+const road=new Set();
+for(let i=0;i<P.length-1;i++){const[a,b]=P[i],[c,d]=P[i+1];for(let u=Math.min(a,c);u<=Math.max(a,c);u++)for(let v=Math.min(b,d);v<=Math.max(b,d);v++)road.add(u+','+v)}
+function pos(d){for(let i=0;i<L.length;i++){if(d<=L[i]){const a=pts[i],b=pts[i+1];return[a[0]+(b[0]-a[0])*d/L[i],a[1]+(b[1]-a[1])*d/L[i]]}d-=L[i]}return pts[pts.length-1]}
+const CR={w:{e:'🌾',t:4,n:'Wheat'},c:{e:'🌽',t:9,n:'Corn'},p:{e:'🎃',t:16,n:'Pumpkin'}};
+const WP={b:{e:'🏹',n:'Bow',cost:{w:3},r:105,cd:.6,dmg:8},
+ k:{e:'💣',n:'Cannon',cost:{c:3},r:95,cd:1.6,dmg:28,sp:45},
+ f:{e:'❄️',n:'Frost',cost:{p:2},r:85,cd:1.1,dmg:5,sp:40,slow:1}};
+let r,plots,towers,en,shots,wave,hp,run,seed,wp,left,st,over;
+function init(){r={w:3,c:0,p:0};plots=Array.from({length:6},()=>({k:null,t:0}));towers=[];en=[];shots=[];wave=0;hp=10;run=false;seed='w';wp=null;left=0;st=0;over=false;say('Plant seeds, harvest, build weapons!');$('go').textContent='Start Wave 1';$('go').disabled=false;ui()}
+function say(m){$('msg').textContent=m}
+function can(w){return Object.entries(WP[w].cost).every(([k,v])=>r[k]>=v)}
+function costTxt(w){return Object.entries(WP[w].cost).map(([k,v])=>CR[k].e+v).join(' ')}
+function ui(){
+ $('hp').textContent='❤️ '+hp;$('wv').textContent='Wave '+wave;$('rs').textContent=`🌾${r.w} 🌽${r.c} 🎃${r.p}`;
+ $('seeds').innerHTML='';for(const k in CR){const b=document.createElement('button');b.className=seed==k?'on':'';b.innerHTML=CR[k].e+'<br>'+CR[k].n+'<br><small>'+CR[k].t+'s</small>';b.onclick=()=>{seed=k;ui()};$('seeds').append(b)}
+ $('wps').innerHTML='';for(const k in WP){const b=document.createElement('button');b.className=wp==k?'on':'';b.disabled=!can(k);b.innerHTML=WP[k].e+'<br>'+WP[k].n+'<br><small>'+costTxt(k)+'</small>';b.onclick=()=>{wp=wp==k?null:k;ui()};$('wps').append(b)}
+ if(!$('plots').children.length)plots.forEach((p,i)=>{const b=document.createElement('button');b.className='plot';b.onclick=()=>tapPlot(i);$('plots').append(b)});
+ upPlots()}
+function upPlots(){plots.forEach((p,i)=>{const b=$('plots').children[i];if(!b)return;
+ if(!p.k){b.className='plot';b.textContent='＋ plant'}
+ else if(p.t>=CR[p.k].t){b.className='plot ripe';b.innerHTML=CR[p.k].e+'<br>Harvest!'}
+ else{b.className='plot';b.innerHTML='🌱<br>'+Math.round(p.t/CR[p.k].t*100)+'%'}})}
+function tapPlot(i){const p=plots[i];if(over)return;
+ if(!p.k){p.k=seed;p.t=0}else if(p.t>=CR[p.k].t){r[p.k]++;p.k=null;ui()}upPlots()}
+C.addEventListener('pointerdown',e=>{if(over||!wp)return;const b=C.getBoundingClientRect(),s=C.width/b.width,tx=Math.floor((e.clientX-b.left)*s/T),ty=Math.floor((e.clientY-b.top)*s/T);
+ if(road.has(tx+','+ty)||(tx==7&&ty==5)){say("Can't build on the road!");return}
+ if(towers.some(t=>t.tx==tx&&t.ty==ty)){say('Tile taken.');return}
+ if(!can(wp)){say('Not enough crops — keep farming!');return}
+ for(const k in WP[wp].cost)r[k]-=WP[wp].cost[k];
+ towers.push({w:wp,tx,ty,x:tx*T+20,y:ty*T+20,cd:0});if(!can(wp))wp=null;ui()});
+$('go').onclick=()=>{if(run||over)return;wave++;run=true;left=4+wave*2;st=0;$('go').disabled=true;$('go').textContent='Wave '+wave+' incoming!';say('Defend the castle!');ui()};
+function dmgE(e,d,slow){e.hp-=d;if(slow)e.sl=2}
+let last=performance.now(),acc=0;
+function loop(n){const dt=Math.min(.05,(n-last)/1000);last=n;
+ if(!over){plots.forEach(p=>{if(p.k&&p.t<CR[p.k].t)p.t+=dt});
+  if(run){st-=dt;if(left>0&&st<=0){en.push({d:0,hp:12+wave*9,mx:12+wave*9,v:38+wave*3,sl:0,x:0,y:0});left--;st=Math.max(.45,1-wave*.04)}
+   en.forEach(e=>{e.sl=Math.max(0,e.sl-dt);e.d+=e.v*(e.sl>0?.45:1)*dt;[e.x,e.y]=pos(e.d)});
+   en=en.filter(e=>{if(e.d>=TL){hp--;ui();return false}return e.hp>0});
+   if(hp<=0){over=true;say('💀 The castle fell at wave '+wave+'.');$('go').disabled=false;$('go').textContent='Play again';run=false;$('go').onclick=()=>{$('go').onclick=null;location.reload()}}
+   else if(left==0&&!en.length){run=false;const k=['w','c','p'][wave%3];r[k]+=2;r.w+=1;$('go').disabled=false;$('go').textContent='Start Wave '+(wave+1);say('Wave cleared! Bonus: +1🌾 +2'+CR[k].e);ui()}}
+  towers.forEach(t=>{t.cd-=dt;const W=WP[t.w];if(t.cd>0)return;
+   let tg=null;en.forEach(e=>{if(Math.hypot(e.x-t.x,e.y-t.y)<=W.r&&(!tg||e.d>tg.d))tg=e});
+   if(tg){t.cd=W.cd;if(W.sp)en.forEach(e=>{if(Math.hypot(e.x-tg.x,e.y-tg.y)<=W.sp)dmgE(e,W.dmg,W.slow)});else dmgE(tg,W.dmg);
+    shots.push({a:t.x,b:t.y,x:tg.x,y:tg.y,l:.15,w:t.w})}})}
+ shots.forEach(s=>s.l-=dt);shots=shots.filter(s=>s.l>0);
+ acc+=dt;if(acc>.2){acc=0;upPlots();$('rs').textContent=`🌾${r.w} 🌽${r.c} 🎃${r.p}`;document.querySelectorAll('#wps button').forEach((b,i)=>b.disabled=!can(Object.keys(WP)[i]))}
+ draw();requestAnimationFrame(loop)}
+function draw(){
+ for(let x=0;x<8;x++)for(let y=0;y<7;y++){g.fillStyle=road.has(x+','+y)?'#c9a66b':((x+y)%2?'#6bb35a':'#74bd62');g.fillRect(x*T,y*T,T,T)}
+ g.font='28px serif';g.textAlign='center';g.textBaseline='middle';
+ g.fillText('🏰',7*T+20,5*T+22);
+ if(wp){g.strokeStyle='rgba(255,255,255,.25)';for(let x=0;x<8;x++)for(let y=0;y<7;y++)if(!road.has(x+','+y))g.strokeRect(x*T+1,y*T+1,T-2,T-2)}
+ towers.forEach(t=>{g.font='26px serif';g.fillText(WP[t.w].e,t.x,t.y+2)});
+ shots.forEach(s=>{g.strokeStyle=s.w=='f'?'#7fd4ff':s.w=='k'?'#ff7a1a':'#fff';g.lineWidth=3;g.beginPath();g.moveTo(s.a,s.b);g.lineTo(s.x,s.y);g.stroke();if(s.w!='b'){g.beginPath();g.arc(s.x,s.y,WP[s.w].sp,0,7);g.globalAlpha=.25;g.fillStyle=g.strokeStyle;g.fill();g.globalAlpha=1}});
+ en.forEach(e=>{g.font='24px serif';g.fillText(e.sl>0?'🥶':'👹',e.x,e.y);g.fillStyle='#300';g.fillRect(e.x-14,e.y-20,28,4);g.fillStyle='#4c4';g.fillRect(e.x-14,e.y-20,28*Math.max(0,e.hp/e.mx),4)})}
+init();requestAnimationFrame(loop);
+</script></body></html>
