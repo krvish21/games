@@ -32,11 +32,15 @@ select,button{font:inherit;color:var(--fg);background:var(--btn);border:0;border
 #msg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:5}
 #msg div{background:var(--card);padding:24px 28px;border-radius:16px;text-align:center;max-width:300px}
 #msg h2{margin:0 0 8px}#msg button{background:var(--acc);color:#fff;margin-top:12px}
+.tabs{display:flex;gap:6px;margin-bottom:8px}.tabs button{flex:1}.tabs button.on{background:var(--acc);color:#fff}
+.c.g{font-weight:700;cursor:default}.c.f{color:var(--user)}.app.sol .tools,.app.sol .pad{display:none}.hintline{display:none;font-size:13px;opacity:.7;margin-top:10px;text-align:center}.app.sol .hintline{display:block}
 </style></head><body>
-<div class="app">
+<div class="app" id="app">
 <div class="top"><b>Sudoku</b><span id="info">Mistakes 0/3 · 0:00</span>
 <select id="diff"><option value="40">Easy</option><option value="32" selected>Medium</option><option value="27">Hard</option></select></div>
+<div class="tabs"><button id="tp" class="on">Play</button><button id="ts">Solution</button></div>
 <div id="grid"></div>
+<div class="hintline">Bold = given numbers · Blue = the answers to fill in</div>
 <div class="tools"><button id="undo">↶ Undo</button><button id="erase">⌫ Erase</button><button id="note">✎ Notes</button><button id="hint">💡 Hint</button><button id="new">New</button></div>
 <div class="pad" id="pad"></div>
 </div>
@@ -59,7 +63,7 @@ function newGame(){sol=Array(81).fill(0);fill(sol);const p=sol.slice(),keep=+$('
 let clues=81;for(const i of shuffle([...Array(81).keys()])){if(clues<=keep)break;const v=p[i];p[i]=0;if(count(p.slice())!==1)p[i]=v;else clues--}
 giv=p.map(v=>v>0);cur=p.slice();nt=Array.from({length:81},()=>new Set());sel=-1;mist=0;hist=[];over=false;t0=Date.now();$('#msg').style.display='none';draw()}
 const snap=()=>hist.push([cur.slice(),nt.map(s=>new Set(s)),mist]);
-function input(n){if(over||sel<0||giv[sel])return;snap();
+function input(n){if(showSol||over||sel<0||giv[sel])return;snap();
 if(nm){if(cur[sel])return;nt[sel].has(n)?nt[sel].delete(n):nt[sel].add(n)}
 else{if(cur[sel]===n){cur[sel]=0}else{cur[sel]=n;nt[sel].clear();if(n!==sol[sel]){mist++}
 const r=R(sel),c=C(sel),br=r-r%3,bc=c-c%3;for(let k=0;k<81;k++){if(R(k)===r||C(k)===c||(R(k)-R(k)%3===br&&C(k)-C(k)%3===bc))nt[k].delete(n)}}}
@@ -68,7 +72,9 @@ function check(){if(mist>=3){end('Game over','Three mistakes. Try again!')}
 else if(cur.every((v,i)=>v===sol[i])){end('Solved! 🎉','Time '+fmt()+' · Mistakes '+mist)}}
 function end(t,p){over=true;$('#mt').textContent=t;$('#mp').textContent=p;$('#msg').style.display='flex'}
 const fmt=()=>{const s=(Date.now()-t0)/1000|0;return(s/60|0)+':'+String(s%60).padStart(2,'0')};
+let showSol=false;
 function draw(){const cs=g.children,sv=sel>=0?cur[sel]:0;
+if(showSol){for(let i=0;i<81;i++){cs[i].className='c '+(giv[i]?'g':'f');cs[i].textContent=sol[i]}tick();return}
 for(let i=0;i<81;i++){const e=cs[i],v=cur[i];let cl='c';
 if(sel>=0){const r=R(sel),c=C(sel);if(i===sel)cl+=' s';else if(R(i)===r||C(i)===c||((R(i)/3|0)===(r/3|0)&&(C(i)/3|0)===(c/3|0)))cl+=' r';
 if(sv&&v===sv&&i!==sel)cl+=' s2'}
@@ -83,7 +89,9 @@ $('#undo').onclick=()=>{if(over||!hist.length)return;[cur,nt,mist]=hist.pop();dr
 $('#erase').onclick=()=>{if(over||sel<0||giv[sel])return;snap();cur[sel]=0;nt[sel].clear();draw()};
 $('#note').onclick=()=>{nm=!nm;draw()};
 $('#hint').onclick=()=>{if(over)return;let i=sel>=0&&!giv[sel]&&cur[sel]!==sol[sel]?sel:cur.findIndex((v,k)=>v!==sol[k]);if(i<0)return;snap();sel=i;cur[i]=sol[i];nt[i].clear();mist=Math.min(mist,2)+(mist>=3?1:0);draw();check()};
-$('#new').onclick=newGame;$('#mb').onclick=newGame;$('#diff').onchange=newGame;
+$('#new').onclick=newGame;
+function tab(s){showSol=s;$('#app').classList.toggle('sol',s);$('#tp').classList.toggle('on',!s);$('#ts').classList.toggle('on',s);draw()}
+$('#tp').onclick=()=>tab(false);$('#ts').onclick=()=>tab(true);$('#mb').onclick=newGame;$('#diff').onchange=newGame;
 document.onkeydown=e=>{if(e.key>='1'&&e.key<='9')input(+e.key);else if(e.key==='Backspace'||e.key==='Delete')$('#erase').click();
 else if(e.key.startsWith('Arrow')&&sel>=0){const d={ArrowUp:-9,ArrowDown:9,ArrowLeft:-1,ArrowRight:1}[e.key],n=sel+d;if(n>=0&&n<81&&!(d===1&&C(sel)===8)&&!(d===-1&&C(sel)===0)){sel=n;draw()}}};
 newGame();
