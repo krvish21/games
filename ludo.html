@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ludo</title>
+<style>
+:root{--bg:#f6f1e7;--fg:#222;--cell:#fff;--bd:#cfc6b4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1b22;--fg:#f1eee6;--cell:#2d2b36;--bd:#4b4860}}
+:root[data-theme="dark"]{--bg:#1c1b22;--fg:#f1eee6;--cell:#2d2b36;--bd:#4b4860}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+body{padding:10px;max-width:540px;margin:0 auto;text-align:center}
+h1{font-size:22px;margin:6px 0}
+button.b{font:inherit;font-weight:700;border:0;border-radius:12px;padding:10px 16px;margin:4px;background:#5e35b1;color:#fff;cursor:pointer}
+input{font:inherit;padding:8px;border-radius:10px;border:3px solid;background:var(--cell);color:var(--fg);width:70%;margin:4px;box-sizing:border-box}
+.board{display:grid;grid-template:repeat(15,1fr)/repeat(15,1fr);width:100%;aspect-ratio:1;border:3px solid #333;background:var(--cell);box-sizing:border-box}
+.c{border:1px solid var(--bd);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;font-size:10px;background:var(--cell);min-width:0;min-height:0;box-sizing:border-box}
+.base{border:1px solid #333;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.slots{width:66%;height:66%;background:var(--cell);border-radius:12px;display:grid;grid-template:1fr 1fr/1fr 1fr;place-items:center}
+.slot{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.tk{border:2px solid #fff;box-shadow:0 0 0 1.5px #222;border-radius:50%;aspect-ratio:1;padding:0;position:relative;z-index:2;pointer-events:none}
+.slot .tk{width:70%}
+.mv{animation:p .5s infinite alternate;cursor:pointer;pointer-events:auto}
+@keyframes p{to{transform:scale(1.35)}}
+.hop{animation:hop .19s ease-out;z-index:9}
+@keyframes hop{0%{transform:translateY(0) scale(1)}50%{transform:translateY(-75%) scale(1.45)}100%{transform:translateY(0) scale(1)}}
+.mid{border:1px solid #333;background:conic-gradient(from 45deg,#43a047 0 25%,#fbc02d 0 50%,#1e88e5 0 75%,#e53935 0)}
+.drow{display:flex;justify-content:space-between;margin:6px 0;min-height:130px}
+.pc{width:47%;border:3px solid;border-radius:14px;padding:6px;box-sizing:border-box;opacity:.45;background:var(--cell)}
+.pc.live{opacity:1}.pc.on{box-shadow:0 0 0 3px #ffca28}
+.pc b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc small{display:block;font-size:11px;min-height:28px}
+.dc{font-size:46px;line-height:1.1;background:none;border:0;color:var(--fg);padding:0;cursor:pointer}
+.dc:disabled{cursor:default}
+.rl{animation:tumble .45s linear infinite}
+@keyframes tumble{0%{transform:rotate(0) scale(1)}25%{transform:rotate(100deg) scale(1.3) translateY(-8px)}50%{transform:rotate(200deg) scale(1.1)}75%{transform:rotate(290deg) scale(1.3) translateY(-6px)}100%{transform:rotate(360deg) scale(1)}}
+.pop{animation:pop .4s ease-out}
+@keyframes pop{0%{transform:scale(1.8) rotate(-20deg)}100%{transform:scale(1) rotate(0)}}
+.sc{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;font-size:13px}
+.sc span{border:2px solid;border-radius:10px;padding:4px 8px}
+</style></head>
+<body>
+<h1>🎲 Ludo: Pass &amp; Play</h1>
+<div id="setup">
+<p>Player names</p>
+<div id="names"></div>
+<p>How many players?</p>
+<button class="b" onclick="start(2)">2</button><button class="b" onclick="start(3)">3</button><button class="b" onclick="start(4)">4</button>
+<p><small>Roll a 1 or 6 to leave base. Land on a rival to send them home (not on ⭐ or start squares). A 6, a capture or reaching home gives another roll. You need an exact roll to finish.</small></p>
+</div>
+<div id="game" hidden>
+<div class="drow" id="dtop"></div>
+<div class="board" id="board"></div>
+<div class="drow" id="dbot"></div>
+<div id="msg" style="font-weight:700;min-height:22px"></div>
+<button class="b" style="background:#777" onclick="location.reload()">New game</button>
+<button class="b" style="background:#777" id="mb" onclick="mute()">🔊</button>
+<div class="sc" id="sc"></div>
+</div>
+<script>
+const COL=['#e53935','#43a047','#fbc02d','#1e88e5'],NAME=['Red','Green','Yellow','Blue'];
+const ST=[0,13,26,39],SAFE=[0,8,13,21,26,34,39,47];
+const BASE=[[0,0],[0,9],[9,9],[9,0]];
+const HOME=[[[7,1],[7,2],[7,3],[7,4],[7,5]],[[1,7],[2,7],[3,7],[4,7],[5,7]],[[7,13],[7,12],[7,11],[7,10],[7,9]],[[13,7],[12,7],[11,7],[10,7],[9,7]]];
+const F=['⚀','⚁','⚂','⚃','⚄','⚅'];
+const PATH=(()=>{const a=[];
+for(let c=1;c<=5;c++)a.push([6,c]);
+for(let r=5;r>=0;r--)a.push([r,6]);
+a.push([0,7],[0,8]);
+for(let r=1;r<=5;r++)a.push([r,8]);
+for(let c=9;c<=14;c++)a.push([6,c]);
+a.push([7,14],[8,14]);
+for(let c=13;c>=9;c--)a.push([8,c]);
+for(let r=9;r<=14;r++)a.push([r,8]);
+a.push([14,7],[14,6]);
+for(let r=13;r>=9;r--)a.push([r,6]);
+for(let c=5;c>=0;c--)a.push([8,c]);
+a.push([7,0],[6,0]);return a})();
+let G=null,AC=null,MUTE=false;const $=id=>document.getElementById(id);
+const sl=ms=>new Promise(r=>setTimeout(r,ms));
+$('names').innerHTML=NAME.map((n,i)=>`<input id="n${i}" maxlength="12" placeholder="${n}" style="border-color:${COL[i]}">`).join('');
+function mute(){MUTE=!MUTE;$('mb').textContent=MUTE?'🔇':'🔊'}
+function snd(t){
+if(MUTE)return;
+try{
+AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
+const tone=(f,d,ty,v,at,f2)=>{const o=AC.createOscillator(),g=AC.createGain(),T=AC.currentTime+(at||0);o.type=ty||'sine';o.frequency.setValueAtTime(f,T);if(f2)o.frequency.exponentialRampToValueAtTime(f2,T+d);g.gain.setValueAtTime(v||.15,T);g.gain.exponentialRampToValueAtTime(.001,T+d);o.connect(g);g.connect(AC.destination);o.start(T);o.stop(T+d)};
+if(t==='tick')tone(250+Math.random()*350,.05,'square',.05);
+else if(t==='land')tone(160,.15,'triangle',.25,0,70);
+else if(t==='hop')tone(480,.08,'sine',.14,0,700);
+else if(t==='out')[500,700,950].forEach((f,i)=>tone(f,.12,'triangle',.15,i*.08));
+else if(t==='cap')tone(420,.35,'sawtooth',.14,0,70);
+else if(t==='home')[523,659,784,1047].forEach((f,i)=>tone(f,.18,'triangle',.18,i*.1));
+else if(t==='win')[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,.25,'triangle',.2,i*.14));
+}catch(e){}
+}
+const cur=()=>G.act[G.turn];
+function start(n){
+snd('tick');
+G={act:n===2?[0,2]:n===3?[0,1,2]:[0,1,2,3],nm:NAME.map((x,i)=>$('n'+i).value.trim()||x),t:[0,1,2,3].map(()=>[-1,-1,-1,-1]),turn:0,v:0,last:[0,0,0,0],cm:['','','',''],rolling:-1,hop:null,phase:'roll',mv:[],msg:''};
+G.msg=G.nm[0]+' starts. Roll the dice!';G.cm[0]='Your turn!';
+$('setup').hidden=true;$('game').hidden=false;render();
+}
+function pos(pl,p){return p<0||p>=56?null:p<=50?PATH[(ST[pl]+p)%52]:HOME[pl][p-51]}
+function movable(pl,v){return G.t[pl].map((p,i)=>((p===-1&&(v===6||v===1))||(p>=0&&p+v<=56))?i:-1).filter(i=>i>=0)}
+function pass(){G.turn=(G.turn+1)%G.act.length;G.phase='roll';G.cm[cur()]='Your turn!';G.msg=G.nm[cur()]+'’s turn. Pass the device!'}
+function roll(p){
+if(G.phase!=='roll'||p!==cur())return;
+G.phase='rolling';G.rolling=p;G.cm[p]='Rolling…';render();let k=0;
+const iv=setInterval(()=>{
+const e=$('d'+p);if(e)e.textContent=F[Math.floor(Math.random()*6)];snd('tick');
+if(++k>9){clearInterval(iv);G.v=1+Math.floor(Math.random()*6);G.last[p]=G.v;G.rolling=-1;snd('land');render();setTimeout(after,500)}
+},80);
+}
+function after(){
+const pl=cur(),v=G.v,m=movable(pl,v),n=G.nm[pl];
+if(!m.length){
+G.cm[pl]='Rolled '+v+': no move 😕';G.msg=n+' rolled '+v+': no move.';G.phase='wait';render();
+setTimeout(()=>{pass();render()},1200);return;
+}
+G.mv=m;G.cm[pl]='Rolled '+v+(v===6?' 🎉':'');
+if(m.length===1||new Set(m.map(i=>G.t[pl][i])).size===1){
+G.msg=n+' rolled '+v+'.';G.phase='wait';render();
+setTimeout(()=>doMove(m[0],true),500);return;
+}
+G.msg=n+', tap a glowing token.';G.phase='pick';render();
+}
+async function doMove(i,force){
+if(G.phase!=='pick'&&!force)return;
+const pl=cur(),tk=G.t[pl],v=G.v,n=G.nm[pl];
+G.phase='anim';
+let out=false;
+if(tk[i]===-1){out=true;tk[i]=0;G.hop={pl,i};snd('out');render();await sl(380)}
+else for(let s=0;s<v;s++){tk[i]++;G.hop={pl,i};snd('hop');render();await sl(210)}
+G.hop=null;
+const np=tk[i];let vic=[];
+if(np<=50){
+const a=(ST[pl]+np)%52;
+if(!SAFE.includes(a))G.act.forEach(o=>{if(o!==pl)G.t[o].forEach((q,k)=>{if(q>=0&&q<=50&&(ST[o]+q)%52===a){G.t[o][k]=-1;if(!vic.includes(o))vic.push(o)}})});
+}
+if(vic.length){snd('cap');vic.forEach(o=>G.cm[o]='Sent home by '+n+' 😢');G.cm[pl]='Captured '+vic.map(o=>G.nm[o]).join(' & ')+'! 💥'}
+else if(out)G.cm[pl]='Rolled '+v+': token out of base! 🚀';
+if(tk.every(x=>x===56)){G.phase='over';G.msg='🏆 '+n+' wins!';G.cm[pl]='Winner! 🏆';snd('win');render();return}
+if(np===56){snd('home');G.cm[pl]='Token home! 🏠'}
+const extra=v===6||vic.length||np===56;
+if(extra){G.cm[pl]+=' Roll again!';G.msg=n+' rolls again!';G.phase='roll'}
+else pass();
+render();
+}
+function render(){
+const cells={};
+G.act.forEach(pl=>G.t[pl].forEach((p,i)=>{const q=pos(pl,p);if(q){const k=q.join();(cells[k]=cells[k]||[]).push([pl,i])}}));
+const canTap=(pl,i)=>G.phase==='pick'&&pl===cur()&&G.mv.includes(i);
+const tok=(pl,i,sz)=>{const m=canTap(pl,i),hp=G.hop&&G.hop.pl===pl&&G.hop.i===i;
+return `<button class="tk ${m?'mv':''} ${hp?'hop':''}" style="background:${COL[pl]};${sz?'width:'+sz:''}" ${m?`onclick="doMove(${i})"`:'tabindex="-1"'}></button>`};
+let h='';
+const cell=(r,c,bg,lab)=>{const L=cells[r+','+c]||[];const sz=L.length>1?'46%':'72%';
+h+=`<div class="c" style="grid-row:${r+1};grid-column:${c+1};${bg?'background:'+bg+';':''}">${L.length?L.map(([pl,i])=>tok(pl,i,sz)).join(''):(lab||'')}</div>`};
+PATH.forEach(([r,c],i)=>{const si=ST.indexOf(i);cell(r,c,si>=0?COL[si]+'cc':'',si<0&&SAFE.includes(i)?'⭐':'')});
+for(let pl=0;pl<4;pl++)HOME[pl].forEach(([r,c])=>cell(r,c,COL[pl]+'99',''));
+for(let pl=0;pl<4;pl++){
+const [r,c]=BASE[pl],on=G.act.includes(pl);
+h+=`<div class="base" style="grid-area:${r+1}/${c+1}/${r+7}/${c+7};background:${COL[pl]};opacity:${on?1:.3}"><div class="slots">${[0,1,2,3].map(i=>`<div class="slot">${on&&G.t[pl][i]===-1?tok(pl,i):''}</div>`).join('')}</div></div>`;
+}
+h+='<div class="mid" style="grid-area:7/7/10/10"></div>';
+$('board').innerHTML=h;
+const dd=pl=>{if(!G.act.includes(pl))return'<div></div>';
+const on=pl===cur()&&G.phase==='roll',cl=G.rolling===pl?'rl':(pl===cur()&&G.phase!=='roll'&&G.last[pl]?'pop':'');
+return `<div class="pc ${pl===cur()?'live':''} ${on?'on':''}" style="border-color:${COL[pl]}"><b style="color:${COL[pl]}">${G.nm[pl]}</b><button id="d${pl}" class="dc ${cl}" onclick="roll(${pl})" ${on?'':'disabled'}>${G.last[pl]?F[G.last[pl]-1]:'🎲'}</button><small>${G.cm[pl]}</small></div>`};
+$('dtop').innerHTML=dd(0)+dd(1);$('dbot').innerHTML=dd(3)+dd(2);
+$('msg').style.color=G.phase==='over'?'':COL[cur()];
+$('msg').textContent=G.msg;
+$('sc').innerHTML=G.act.map(pl=>`<span style="border-color:${COL[pl]}">${G.nm[pl]}: ${G.t[pl].filter(x=>x===56).length}/4 home</span>`).join('');
+}
+</script>
+</body></html>
