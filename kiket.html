@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cricket Timing Game</title>
+<style>
+  html,body{margin:0;padding:0;background:#0b0f14;color:#e8eaed;font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
+  #g{max-width:480px;margin:0 auto;padding:16px;touch-action:manipulation;user-select:none;-webkit-user-select:none;position:relative;border:1px solid #2a323d;border-radius:12px}
+  #g button{font:inherit}
+  #g .lab{font-size:12px;color:#9aa4b2;letter-spacing:0}
+  #g .big{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;font-weight:500;line-height:1.1}
+  #g .dot{width:8px;height:8px;border-radius:50%;background:#232b36;border:1px solid #2a323d}
+  #g .dot.on{background:#e8eaed;border-color:#e8eaed}
+  #g .dot.wk{background:#e5484d;border-color:#e5484d}
+  #g .flash{transition:opacity .12s ease-out,transform .12s ease-out}
+</style>
+</head>
+<body>
+<div id="g">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px">
+    <div><div class="lab">Runs</div><div id="runs" class="big" style="font-size:40px">0</div></div>
+    <div style="text-align:center"><div class="lab">Wickets</div><div id="wkts" style="display:flex;gap:6px;justify-content:center;margin-top:8px"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+    <div style="text-align:right"><div class="lab">Balls left</div><div id="balls" class="big" style="font-size:40px">12</div></div>
+  </div>
+
+  <div style="display:flex;gap:4px;justify-content:center;margin-top:12px" id="pdots"></div>
+
+  <div style="height:56px;display:flex;align-items:center;justify-content:center;margin-top:8px">
+    <div id="msg" class="big flash" style="font-size:20px;color:#c4ccd8;text-align:center">Tap to start the innings</div>
+  </div>
+
+  <div id="meter" style="position:relative;height:44px;border-radius:8px;overflow:hidden;background:#e5484d">
+    <div id="zone" style="position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);background:#30a46c;width:28%"></div>
+    <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.4)"></div>
+    <div id="needle" style="position:absolute;top:0;bottom:0;width:3px;left:50%;background:#fff;border-radius:2px"></div>
+  </div>
+  <div style="height:3px;background:#232b36;border-radius:2px;margin-top:6px;overflow:hidden"><div id="clock" style="height:100%;width:100%;background:#e8eaed"></div></div>
+
+  <div id="btn" style="margin-top:16px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500;background:#e8eaed;color:#0b0f14">Tap anywhere to hit</div>
+  <div style="display:flex;justify-content:space-between;margin-top:8px"><div class="lab">Sweet spot shrinks every ball</div><div class="lab" id="best">Best: 0</div></div>
+
+  <div id="over" style="display:none;position:absolute;inset:0;border-radius:12px;background:#0b0f14;align-items:center;justify-content:center;flex-direction:column;gap:8px">
+    <div class="big" style="font-size:28px">Innings over</div>
+    <div id="final" class="big" style="font-size:40px">0 runs</div>
+    <div id="finalsub" class="lab" style="font-size:14px;color:#c4ccd8"></div>
+    <button id="again" style="margin-top:8px;padding:12px 24px;border:none;border-radius:10px;background:#e8eaed;color:#0b0f14;font-size:16px;font-weight:500">Play again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+var state='idle',runs=0,wkts=0,balls=12,ball=0,phase=0,last=0,armedAt=0,winMs=1500,frozen=0,running=false,best=0;
+try{best=parseInt(localStorage.getItem('ctg_best')||'0')}catch(e){}
+var $=function(id){return document.getElementById(id)};
+$('best').textContent='Best: '+best;
+var pd=$('pdots');for(var i=0;i<12;i++){var d=document.createElement('div');d.className='dot';pd.appendChild(d)}
+function hw(){return Math.max(0.055,0.14-ball*0.007)}
+function speed(){return 2.4+ball*0.25}
+function sync(){
+  $('runs').textContent=runs;$('balls').textContent=balls;
+  var w=$('wkts').children;for(var i=0;i<w.length;i++){w[i].className='dot'+(i<wkts?' wk':'')}
+  var p=pd.children;for(var i=0;i<12;i++){p[i].className='dot'+(i<ball?' on':'')}
+  $('zone').style.width=(hw()*200)+'%';
+}
+function flash(t,color){
+  var m=$('msg');m.textContent=t;m.style.color=color||'#c4ccd8';
+  m.style.opacity=0;m.style.transform='translateY(4px)';
+  requestAnimationFrame(function(){m.style.opacity=1;m.style.transform='none'});
+}
+function arm(){
+  if(balls<=0||wkts>=3)return end();
+  state='live';armedAt=performance.now();winMs=Math.max(1050,1600-ball*55);
+  $('btn').textContent='Tap anywhere to hit';sync();
+  flash('Ball '+(ball+1),'#c4ccd8');
+}
+function judge(){
+  var p=0.5+0.45*Math.sin(phase);frozen=p;state='result';
+  var d=Math.abs(p-0.5),h=hw();
+  if(d<h*0.25){runs+=6;flash('SIX!','#30a46c')}
+  else if(d<h*0.6){runs+=4;flash('FOUR!','#30a46c')}
+  else if(d<h){runs+=2;flash('2 runs','#30a46c')}
+  else{wkts++;flash('OUT!','#e5484d')}
+  ball++;balls--;sync();
+  if(balls<=0||wkts>=3)setTimeout(end,900);else setTimeout(arm,900);
+}
+function dot(){
+  state='result';ball++;balls--;sync();flash('No shot — dot ball','#9aa4b2');
+  if(balls<=0||wkts>=3)setTimeout(end,900);else setTimeout(arm,900);
+}
+function end(){
+  state='over';running=false;
+  var nb=Math.max(12-balls,1);
+  var txt=runs+' runs';if(wkts>=3)txt+=' — all out';
+  $('final').textContent=txt;
+  $('finalsub').textContent='off '+nb+' ball'+(nb>1?'s':'')+'. Average '+(runs/nb).toFixed(1)+' per ball.';
+  if(runs>best){best=runs;try{localStorage.setItem('ctg_best',String(best))}catch(e){};$('best').textContent='Best: '+best;$('finalsub').textContent+=' New best!';}
+  $('over').style.display='flex';
+}
+function reset(){runs=0;wkts=0;balls=12;ball=0;state='idle';$('over').style.display='none';flash('Tap to start the innings','#c4ccd8');$('btn').textContent='Tap to start';sync();}
+function loop(t){
+  if(!running)return;
+  var dt=(t-last)/1000;last=t;
+  if(state==='live'){
+    phase+=dt*speed();
+    var p=0.5+0.45*Math.sin(phase);
+    $('needle').style.left=(p*100)+'%';
+    var left=winMs-(t-armedAt);
+    $('clock').style.width=Math.max(0,left/winMs*100)+'%';
+    if(left<=0)dot();
+  }else if(state==='result'){
+    $('needle').style.left=(frozen*100)+'%';
+  }
+  requestAnimationFrame(loop);
+}
+$('g').addEventListener('pointerdown',function(e){
+  if(e.target.id==='again')return;
+  if(state==='idle'){state='live';armedAt=performance.now();last=armedAt;running=true;requestAnimationFrame(loop);flash('Ball 1','#c4ccd8');sync();}
+  else if(state==='live')judge();
+});
+$('again').addEventListener('pointerdown',function(e){e.stopPropagation();reset();});
+sync();
+})();
+</script>
+</body>
+</html>
