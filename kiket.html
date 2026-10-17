@@ -2,123 +2,232 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Cricket Timing Game</title>
 <style>
-  html,body{margin:0;padding:0;background:#0b0f14;color:#e8eaed;font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
-  #g{max-width:480px;margin:0 auto;padding:16px;touch-action:manipulation;user-select:none;-webkit-user-select:none;position:relative;border:1px solid #2a323d;border-radius:12px}
-  #g button{font:inherit}
-  #g .lab{font-size:12px;color:#9aa4b2;letter-spacing:0}
-  #g .big{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;font-weight:500;line-height:1.1}
-  #g .dot{width:8px;height:8px;border-radius:50%;background:#232b36;border:1px solid #2a323d}
-  #g .dot.on{background:#e8eaed;border-color:#e8eaed}
-  #g .dot.wk{background:#e5484d;border-color:#e5484d}
-  #g .flash{transition:opacity .12s ease-out,transform .12s ease-out}
+:root{
+  --bg1:#0e2a1d;--bg2:#06130d;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.14);
+  --text:#f2f6f3;--mute:#9db5a8;--good:#35d07f;--gold:#ffd24a;--bad:#ff5b5b;--ball:#d7263d;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg1:#d9f2e2;--bg2:#b9e3c9;--card:rgba(0,0,0,.06);--line:rgba(0,0,0,.15);
+  --text:#0d2217;--mute:#3f5f4e;--good:#12a85a;--gold:#b98200;--bad:#d62f2f;--ball:#c21b30}}
+:root[data-theme="dark"]{--bg1:#0e2a1d;--bg2:#06130d}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg2);color:var(--text);
+  font-family:-apple-system,"Segoe UI",Roboto,sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+body{background:radial-gradient(120% 80% at 50% 0%,var(--bg1),var(--bg2))}
+#app{height:100%;max-width:480px;margin:0 auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;position:relative}
+.lab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.num{font-variant-numeric:tabular-nums;font-weight:700;line-height:1}
+.stats{display:flex;justify-content:space-between;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 16px}
+.stats .num{font-size:38px}
+.wk{display:flex;gap:7px;margin-top:8px;justify-content:center}
+.wk i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);display:block;transition:.2s}
+.wk i.on{background:var(--bad);border-color:var(--bad);transform:scale(1.15)}
+.over{display:flex;gap:5px;justify-content:center}
+.over i{width:22px;height:6px;border-radius:3px;background:var(--line);transition:.2s}
+.over i.on{background:var(--gold)}
+.stage{flex:1;min-height:150px;position:relative;border-radius:20px;overflow:hidden;border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.1));display:flex;align-items:center;justify-content:center}
+.pitch{position:absolute;top:0;bottom:0;left:50%;width:34%;transform:translateX(-50%);
+  background:linear-gradient(180deg,rgba(214,181,120,.18),rgba(214,181,120,.32));border-left:1px dashed var(--line);border-right:1px dashed var(--line)}
+.crease{position:absolute;left:50%;transform:translateX(-50%);bottom:16%;width:44%;height:3px;background:var(--text);opacity:.5;border-radius:2px}
+#ball{position:absolute;left:50%;top:0;width:26px;height:26px;margin-left:-13px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ff6b7d,var(--ball));box-shadow:0 6px 14px rgba(0,0,0,.4);opacity:0}
+#msg{position:relative;z-index:2;text-align:center;font-weight:800;font-size:26px;padding:0 12px;text-shadow:0 2px 10px rgba(0,0,0,.35)}
+#msg small{display:block;font-size:14px;font-weight:500;color:var(--mute);margin-top:6px;text-shadow:none}
+.meterwrap{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px}
+#meter{position:relative;height:52px;border-radius:10px;overflow:hidden;background:linear-gradient(90deg,#7a2430,#5a1a24 50%,#7a2430)}
+#zone{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);display:flex;align-items:stretch;justify-content:center}
+#zone b{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(0,0,0,.65)}
+#zone .z2{background:#2aa866}#zone .z4{background:#4fd98a;flex:.9}#zone .z6{background:var(--gold);flex:.7}
+#needle{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:#fff;border-radius:2px;box-shadow:0 0 10px #fff}
+#clock{height:5px;margin-top:10px;border-radius:3px;background:var(--line);overflow:hidden}
+#clock i{display:block;height:100%;width:100%;background:var(--gold)}
+#btn{height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;
+  background:var(--good);color:#04200f;box-shadow:0 6px 0 rgba(0,0,0,.28);transition:transform .06s}
+#btn.press{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.28)}
+.foot{display:flex;justify-content:space-between;align-items:center}
+.tog{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:8px 14px;font:inherit;font-size:13px;margin-left:8px}
+.tog.off{opacity:.5}
+.ovl{position:absolute;inset:0;z-index:10;background:rgba(4,14,9,.92);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:28px;text-align:center;color:#f2f6f3}
+.ovl h1{margin:0;font-size:30px}.ovl p{margin:0;color:#b6cbbf;line-height:1.5;font-size:15px}
+.ovl .big{font-size:56px;font-weight:800}
+.cta{margin-top:8px;padding:16px 36px;border:0;border-radius:14px;background:#35d07f;color:#04200f;font:inherit;font-size:18px;font-weight:700}
+.legend{display:flex;gap:10px;justify-content:center;font-size:13px}
+.legend span{padding:4px 10px;border-radius:999px;color:#04200f;font-weight:700}
 </style>
 </head>
 <body>
-<div id="g">
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px">
-    <div><div class="lab">Runs</div><div id="runs" class="big" style="font-size:40px">0</div></div>
-    <div style="text-align:center"><div class="lab">Wickets</div><div id="wkts" style="display:flex;gap:6px;justify-content:center;margin-top:8px"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
-    <div style="text-align:right"><div class="lab">Balls left</div><div id="balls" class="big" style="font-size:40px">12</div></div>
+<div id="app">
+  <div class="stats">
+    <div><div class="lab">Runs</div><div id="runs" class="num">0</div></div>
+    <div style="text-align:center"><div class="lab">Wickets</div><div class="wk" id="wkts"><i></i><i></i><i></i></div></div>
+    <div style="text-align:right"><div class="lab">Balls left</div><div id="balls" class="num">12</div></div>
+  </div>
+  <div class="over" id="pdots"></div>
+
+  <div class="stage" id="stage">
+    <div class="pitch"></div><div class="crease"></div><div id="ball"></div>
+    <div id="msg">Ready?<small>Tap anywhere to start</small></div>
   </div>
 
-  <div style="display:flex;gap:4px;justify-content:center;margin-top:12px" id="pdots"></div>
-
-  <div style="height:56px;display:flex;align-items:center;justify-content:center;margin-top:8px">
-    <div id="msg" class="big flash" style="font-size:20px;color:#c4ccd8;text-align:center">Tap to start the innings</div>
+  <div class="meterwrap">
+    <div id="meter">
+      <div id="zone"><b class="z2">2</b><b class="z4">4</b><b class="z6">6</b><b class="z4">4</b><b class="z2">2</b></div>
+      <div id="needle"></div>
+    </div>
+    <div id="clock"><i></i></div>
   </div>
 
-  <div id="meter" style="position:relative;height:44px;border-radius:8px;overflow:hidden;background:#e5484d">
-    <div id="zone" style="position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);background:#30a46c;width:28%"></div>
-    <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.4)"></div>
-    <div id="needle" style="position:absolute;top:0;bottom:0;width:3px;left:50%;background:#fff;border-radius:2px"></div>
+  <div id="btn">Tap anywhere to hit</div>
+  <div class="foot">
+    <div class="lab" id="best">Best: 0</div>
+    <div><button class="tog" id="tsound">🔊 Sound</button><button class="tog" id="tvib">📳 Vibrate</button></div>
   </div>
-  <div style="height:3px;background:#232b36;border-radius:2px;margin-top:6px;overflow:hidden"><div id="clock" style="height:100%;width:100%;background:#e8eaed"></div></div>
 
-  <div id="btn" style="margin-top:16px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500;background:#e8eaed;color:#0b0f14">Tap anywhere to hit</div>
-  <div style="display:flex;justify-content:space-between;margin-top:8px"><div class="lab">Sweet spot shrinks every ball</div><div class="lab" id="best">Best: 0</div></div>
-
-  <div id="over" style="display:none;position:absolute;inset:0;border-radius:12px;background:#0b0f14;align-items:center;justify-content:center;flex-direction:column;gap:8px">
-    <div class="big" style="font-size:28px">Innings over</div>
-    <div id="final" class="big" style="font-size:40px">0 runs</div>
-    <div id="finalsub" class="lab" style="font-size:14px;color:#c4ccd8"></div>
-    <button id="again" style="margin-top:8px;padding:12px 24px;border:none;border-radius:10px;background:#e8eaed;color:#0b0f14;font-size:16px;font-weight:500">Play again</button>
+  <div class="ovl" id="intro">
+    <div style="font-size:54px">🏏</div>
+    <h1>Cricket Timing</h1>
+    <p>Tap when the white needle is over the green zone. Closer to the centre means bigger runs. The zone shrinks every ball. Miss it and you lose a wicket.</p>
+    <div class="legend"><span style="background:#2aa866">2 runs</span><span style="background:#4fd98a">4 runs</span><span style="background:#ffd24a">6 runs</span></div>
+    <button class="cta" id="go">Start innings</button>
+  </div>
+  <div class="ovl" id="over" style="display:none">
+    <h1>Innings over</h1>
+    <div id="final" class="big">0</div>
+    <p id="finalsub"></p>
+    <button class="cta" id="again">Play again</button>
   </div>
 </div>
 
 <script>
 (function(){
-var state='idle',runs=0,wkts=0,balls=12,ball=0,phase=0,last=0,armedAt=0,winMs=1500,frozen=0,running=false,best=0;
-try{best=parseInt(localStorage.getItem('ctg_best')||'0')}catch(e){}
+var state='idle',runs=0,wkts=0,balls=12,ball=0,phase=0,last=0,armedAt=0,winMs=1600,frozen=.5,running=false,best=0;
+var soundOn=true,vibOn=true,AC=null,timer=0;
+try{best=parseInt(localStorage.getItem('ctg_best')||'0')||0}catch(e){}
 var $=function(id){return document.getElementById(id)};
 $('best').textContent='Best: '+best;
-var pd=$('pdots');for(var i=0;i<12;i++){var d=document.createElement('div');d.className='dot';pd.appendChild(d)}
+var pd=$('pdots');for(var i=0;i<12;i++){pd.appendChild(document.createElement('i'))}
+
+/* ---------- sound + haptics ---------- */
+function ctx(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC}
+function tone(f,d,type,v,slide,delay){
+  if(!soundOn)return;var c=ctx();if(!c)return;var t=c.currentTime+(delay||0);
+  var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);
+  if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);
+  g.gain.setValueAtTime(v||.2,t);g.gain.exponentialRampToValueAtTime(.001,t+d);
+  o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+.02);
+}
+function noise(d,v,fc){
+  if(!soundOn)return;var c=ctx();if(!c)return;var n=c.sampleRate*d,b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);
+  for(var i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);
+  var s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=b;f.type='bandpass';f.frequency.value=fc||1800;
+  g.gain.value=v||.5;s.connect(f);f.connect(g);g.connect(c.destination);s.start();
+}
+function vib(p){if(vibOn&&navigator.vibrate){try{navigator.vibrate(p)}catch(e){}}}
+var SFX={
+  start:function(){tone(660,.1,'triangle',.15);tone(880,.12,'triangle',.15,0,.1)},
+  bowl:function(){tone(300,.25,'sine',.08,520)},
+  two:function(){noise(.08,.6,2200);tone(520,.15,'triangle',.2,700)},
+  four:function(){noise(.1,.8,2000);tone(523,.12,'square',.12);tone(784,.2,'square',.12,0,.1)},
+  six:function(){noise(.12,1,1600);[523,659,784,1047].forEach(function(f,i){tone(f,.22,'square',.13,0,i*.08)});tone(1568,.4,'triangle',.15,0,.34)},
+  out:function(){noise(.15,.9,500);tone(220,.5,'sawtooth',.2,70)},
+  dot:function(){tone(180,.12,'sine',.15,120)},
+  end:function(){[392,330,262].forEach(function(f,i){tone(f,.3,'triangle',.18,0,i*.18)})},
+  best:function(){[523,659,784,1047,1319].forEach(function(f,i){tone(f,.25,'triangle',.18,0,i*.1)})}
+};
+
+/* ---------- visuals ---------- */
 function hw(){return Math.max(0.055,0.14-ball*0.007)}
 function speed(){return 2.4+ball*0.25}
 function sync(){
   $('runs').textContent=runs;$('balls').textContent=balls;
-  var w=$('wkts').children;for(var i=0;i<w.length;i++){w[i].className='dot'+(i<wkts?' wk':'')}
-  var p=pd.children;for(var i=0;i<12;i++){p[i].className='dot'+(i<ball?' on':'')}
+  var w=$('wkts').children;for(var i=0;i<w.length;i++)w[i].className=i<wkts?'on':'';
+  var p=pd.children;for(var j=0;j<12;j++)p[j].className=j<ball?'on':'';
   $('zone').style.width=(hw()*200)+'%';
 }
-function flash(t,color){
-  var m=$('msg');m.textContent=t;m.style.color=color||'#c4ccd8';
-  m.style.opacity=0;m.style.transform='translateY(4px)';
-  requestAnimationFrame(function(){m.style.opacity=1;m.style.transform='none'});
+function say(t,color,sub){
+  var m=$('msg');m.innerHTML='';m.appendChild(document.createTextNode(t));
+  if(sub){var s=document.createElement('small');s.textContent=sub;m.appendChild(s)}
+  m.style.color=color||'var(--text)';
+  m.animate([{transform:'scale(.6)',opacity:0},{transform:'scale(1.15)',opacity:1},{transform:'scale(1)'}],{duration:260,easing:'ease-out'});
 }
+function burst(color,n){
+  var st=$('stage'),r=st.getBoundingClientRect(),cx=r.width/2,cy=r.height/2;
+  for(var i=0;i<n;i++){
+    var d=document.createElement('i'),a=Math.random()*6.283,dist=60+Math.random()*110;
+    d.style.cssText='position:absolute;left:'+cx+'px;top:'+cy+'px;width:8px;height:8px;border-radius:50%;background:'+color+';z-index:1';
+    st.appendChild(d);
+    var an=d.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate('+Math.cos(a)*dist+'px,'+Math.sin(a)*dist+'px) scale(.2)',opacity:0}],{duration:600+Math.random()*300,easing:'ease-out'});
+    an.onfinish=(function(el){return function(){el.remove()}})(d);
+  }
+}
+function shake(){$('app').animate([{transform:'translateX(0)'},{transform:'translateX(-9px)'},{transform:'translateX(9px)'},{transform:'translateX(-6px)'},{transform:'translateX(0)'}],{duration:320})}
+function pressBtn(){var b=$('btn');b.classList.add('press');setTimeout(function(){b.classList.remove('press')},90)}
+
+/* ---------- game flow ---------- */
+function next(){if(balls<=0||wkts>=3)setTimeout(end,1100);else timer=setTimeout(arm,1100)}
 function arm(){
-  if(balls<=0||wkts>=3)return end();
-  state='live';armedAt=performance.now();winMs=Math.max(1050,1600-ball*55);
-  $('btn').textContent='Tap anywhere to hit';sync();
-  flash('Ball '+(ball+1),'#c4ccd8');
+  state='live';armedAt=performance.now();last=armedAt;winMs=Math.max(1050,1600-ball*55);
+  $('ball').style.opacity=1;sync();say('Ball '+(ball+1),'var(--text)');SFX.bowl();
 }
 function judge(){
-  var p=0.5+0.45*Math.sin(phase);frozen=p;state='result';
+  var p=0.5+0.45*Math.sin(phase);frozen=p;state='result';$('ball').style.opacity=0;pressBtn();
   var d=Math.abs(p-0.5),h=hw();
-  if(d<h*0.25){runs+=6;flash('SIX!','#30a46c')}
-  else if(d<h*0.6){runs+=4;flash('FOUR!','#30a46c')}
-  else if(d<h){runs+=2;flash('2 runs','#30a46c')}
-  else{wkts++;flash('OUT!','#e5484d')}
-  ball++;balls--;sync();
-  if(balls<=0||wkts>=3)setTimeout(end,900);else setTimeout(arm,900);
+  if(d<h*0.25){runs+=6;say('SIX!','var(--gold)','Perfect timing');burst('#ffd24a',34);SFX.six();vib([40,40,40,40,120])}
+  else if(d<h*0.6){runs+=4;say('FOUR!','var(--good)','Cracked it');burst('#4fd98a',22);SFX.four();vib([30,30,60])}
+  else if(d<h){runs+=2;say('2 runs','var(--good)','Good contact');burst('#2aa866',12);SFX.two();vib(25)}
+  else{wkts++;say('OUT!','var(--bad)','Wicket '+wkts+' of 3');shake();SFX.out();vib([250])}
+  ball++;balls--;sync();next();
 }
 function dot(){
-  state='result';ball++;balls--;sync();flash('No shot — dot ball','#9aa4b2');
-  if(balls<=0||wkts>=3)setTimeout(end,900);else setTimeout(arm,900);
+  state='result';$('ball').style.opacity=0;ball++;balls--;sync();
+  say('Dot ball','var(--mute)','You didn’t play a shot');SFX.dot();vib(15);next();
 }
 function end(){
-  state='over';running=false;
-  var nb=Math.max(12-balls,1);
-  var txt=runs+' runs';if(wkts>=3)txt+=' — all out';
-  $('final').textContent=txt;
-  $('finalsub').textContent='off '+nb+' ball'+(nb>1?'s':'')+'. Average '+(runs/nb).toFixed(1)+' per ball.';
-  if(runs>best){best=runs;try{localStorage.setItem('ctg_best',String(best))}catch(e){};$('best').textContent='Best: '+best;$('finalsub').textContent+=' New best!';}
+  state='over';running=false;clearTimeout(timer);
+  var nb=Math.max(12-balls,1),isBest=runs>best&&runs>0;
+  $('final').textContent=runs+' runs'+(wkts>=3?' (all out)':'');
+  $('finalsub').textContent='Off '+nb+' ball'+(nb>1?'s':'')+'. Average '+(runs/nb).toFixed(1)+' per ball.'+(isBest?' New best! 🎉':'');
+  if(isBest){best=runs;try{localStorage.setItem('ctg_best',String(best))}catch(e){}$('best').textContent='Best: '+best;SFX.best();vib([60,40,60,40,200])}
+  else{SFX.end();vib([120,60,120])}
   $('over').style.display='flex';
 }
-function reset(){runs=0;wkts=0;balls=12;ball=0;state='idle';$('over').style.display='none';flash('Tap to start the innings','#c4ccd8');$('btn').textContent='Tap to start';sync();}
+function begin(){
+  runs=0;wkts=0;balls=12;ball=0;phase=0;frozen=.5;
+  $('over').style.display='none';$('intro').style.display='none';
+  state='live';running=true;SFX.start();vib(30);sync();arm();last=performance.now();requestAnimationFrame(loop);
+}
 function loop(t){
   if(!running)return;
-  var dt=(t-last)/1000;last=t;
+  var dt=Math.min(.05,(t-last)/1000);last=t;
   if(state==='live'){
     phase+=dt*speed();
     var p=0.5+0.45*Math.sin(phase);
     $('needle').style.left=(p*100)+'%';
-    var left=winMs-(t-armedAt);
-    $('clock').style.width=Math.max(0,left/winMs*100)+'%';
+    var left=winMs-(t-armedAt),prog=1-Math.max(0,left)/winMs;
+    $('clock').firstChild.style.width=Math.max(0,left/winMs*100)+'%';
+    var sh=$('stage').clientHeight,b=$('ball');
+    b.style.transform='translateY('+(prog*(sh*.78))+'px) scale('+(.5+prog*.9)+')';
     if(left<=0)dot();
-  }else if(state==='result'){
-    $('needle').style.left=(frozen*100)+'%';
-  }
+  }else if(state==='result'){$('needle').style.left=(frozen*100)+'%'}
   requestAnimationFrame(loop);
 }
-$('g').addEventListener('pointerdown',function(e){
-  if(e.target.id==='again')return;
-  if(state==='idle'){state='live';armedAt=performance.now();last=armedAt;running=true;requestAnimationFrame(loop);flash('Ball 1','#c4ccd8');sync();}
-  else if(state==='live')judge();
+
+/* ---------- input ---------- */
+document.addEventListener('pointerdown',function(e){
+  var id=e.target.id;
+  if(id==='tsound'||id==='tvib'||id==='go'||id==='again')return;
+  if(state==='live'&&running)judge();
 });
-$('again').addEventListener('pointerdown',function(e){e.stopPropagation();reset();});
+$('go').addEventListener('pointerdown',function(e){e.stopPropagation();ctx();begin()});
+$('again').addEventListener('pointerdown',function(e){e.stopPropagation();ctx();begin()});
+$('tsound').addEventListener('pointerdown',function(e){e.stopPropagation();soundOn=!soundOn;this.classList.toggle('off',!soundOn);this.textContent=soundOn?'🔊 Sound':'🔇 Sound';if(soundOn)tone(660,.1,'triangle',.15)});
+$('tvib').addEventListener('pointerdown',function(e){e.stopPropagation();vibOn=!vibOn;this.classList.toggle('off',!vibOn);this.textContent=vibOn?'📳 Vibrate':'📴 Vibrate';if(vibOn)vib(30)});
+if(!navigator.vibrate){$('tvib').style.display='none'}
 sync();
 })();
 </script>
