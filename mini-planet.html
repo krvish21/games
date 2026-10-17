@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Mini Planet Drive</title>
+<style>
+:root{--bg:#0b1030;--fg:#fff;--btn:rgba(255,255,255,.2);box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 0;font-weight:700;font-size:20px;text-shadow:0 2px 4px #0008;pointer-events:none}
+#ctl{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 18px)}
+.b{width:84px;height:84px;border-radius:50%;background:var(--btn);border:2px solid #fff6;color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.b.on{background:#fff6}
+#boost{width:72px;height:72px;font-size:15px;font-weight:700;background:rgba(255,160,0,.45)}
+#msg{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#0b1030cc;padding:24px;gap:10px}
+#msg h1{margin:0;font-size:32px}#msg p{margin:0;opacity:.85}
+#msg button{margin-top:14px;font-size:20px;font-weight:700;padding:14px 36px;border:0;border-radius:30px;background:#ffb300;color:#222}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="sc">🪙 0</span><span id="tm">⏱ 45</span><span id="hs">Best 0</span></div>
+<div id="ctl">
+<div class="b" id="L">◀</div><div class="b" id="boost">BOOST</div><div class="b" id="R">▶</div></div>
+<div id="msg"><h1>🚗 Mini Planet Drive</h1><p>Hold ◀ ▶ to steer. Hold BOOST to go faster.<br>Grab coins for extra time. Trees slow you down!</p><button id="go">Start</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const R=20,T=THREE;
+if(!T.Vector3.prototype.randomDirection){T.Vector3.prototype.randomDirection=function(){const u=Math.random()*2-1,t=Math.random()*Math.PI*2,s=Math.sqrt(1-u*u);return this.set(s*Math.cos(t),u,s*Math.sin(t))}}
+const cv=document.getElementById('c');
+const ren=new T.WebGLRenderer({canvas:cv,antialias:true});
+ren.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new T.Scene();scene.background=new T.Color(0x0b1030);scene.fog=new T.Fog(0x0b1030,25,60);
+const cam=new T.PerspectiveCamera(62,1,.1,200);
+function rs(){ren.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',rs);rs();
+scene.add(new T.HemisphereLight(0xcfe8ff,0x334422,.8));
+// planet
+const pg=new T.IcosahedronGeometry(R,4);const pos=pg.attributes.position,cols=[];
+const cA=new T.Color(0x4caf50),cB=new T.Color(0x2e7d32),cC=new T.Color(0xe0c27a),cD=new T.Color(0x3b8ed8),tc=new T.Color();
+for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);
+const v=Math.sin(x*.4)+Math.sin(y*.5+1)+Math.sin(z*.45+2);
+tc.copy(v>1.2?cB:v>-.3?cA:v>-1.1?cC:cD);cols.push(tc.r,tc.g,tc.b)}
+pg.setAttribute('color',new T.Float32BufferAttribute(cols,3));
+const pm=new T.Mesh(pg.toNonIndexed(),new T.MeshLambertMaterial({vertexColors:true,flatShading:true}));
+// recolor per-face for flat look
+{const g=pm.geometry,p=g.attributes.position,c=[];for(let i=0;i<p.count;i+=3){const x=(p.getX(i)+p.getX(i+1)+p.getX(i+2))/3,y=(p.getY(i)+p.getY(i+1)+p.getY(i+2))/3,z=(p.getZ(i)+p.getZ(i+1)+p.getZ(i+2))/3;
+const v=Math.sin(x*.4)+Math.sin(y*.5+1)+Math.sin(z*.45+2);
+tc.copy(v>1.2?cB:v>-.3?cA:v>-1.1?cC:cD);for(let k=0;k<3;k++)c.push(tc.r,tc.g,tc.b)}
+g.setAttribute('color',new T.Float32BufferAttribute(c,3))}
+scene.add(pm);
+// stars
+{const a=[];for(let i=0;i<500;i++){const d=new T.Vector3().randomDirection().multiplyScalar(90);a.push(d.x,d.y,d.z)}
+const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(a,3));
+scene.add(new T.Points(g,new T.PointsMaterial({color:0xffffff,size:.5,fog:false})))}
+// car
+const rig=new T.Group();scene.add(rig);
+const car=new T.Group();car.position.y=R+.3;rig.add(car);
+const M=(c)=>new T.MeshLambertMaterial({color:c});
+const body=new T.Mesh(new T.BoxGeometry(1.4,.5,2.4),M(0xe53935));body.position.y=.45;car.add(body);
+const cab=new T.Mesh(new T.BoxGeometry(1.1,.45,1.1),M(0xffffff));cab.position.set(0,.9,.2);car.add(cab);
+for(const x of[-.75,.75])for(const z of[-.8,.8]){const w=new T.Mesh(new T.CylinderGeometry(.33,.33,.25,12),M(0x222222));w.rotation.z=Math.PI/2;w.position.set(x,.3,z);car.add(w)}
+for(const x of[-.45,.45]){const h=new T.Mesh(new T.BoxGeometry(.3,.15,.05),M(0xfff59d));h.position.set(x,.5,-1.2);car.add(h)}
+const sun=new T.DirectionalLight(0xffffff,.9);sun.position.set(6,R+18,10);rig.add(sun);
+cam.position.set(0,R+6.5,9.5);cam.rotation.x=-.42;rig.add(cam);
+// items
+function rdir(){return new T.Vector3().randomDirection()}
+const UP=new T.Vector3(0,1,0);
+function place(o,d,h){o.position.copy(d).multiplyScalar(R+(h||0));o.quaternion.setFromUnitVectors(UP,d)}
+const trees=[],coins=[];
+for(let i=0;i<45;i++){let d;do{d=rdir()}while(d.dot(UP)>.88);
+const t=new T.Group(),s=.8+Math.random()*.7;
+const tr=new T.Mesh(new T.CylinderGeometry(.12,.15,.7),M(0x6d4c41));tr.position.y=.35;t.add(tr);
+const l=new T.Mesh(new T.ConeGeometry(.7,1.8,7),M(0x1b5e20));l.position.y=1.5;t.add(l);
+t.scale.setScalar(s);place(t,d);scene.add(t);trees.push({d})}
+const coinGeo=new T.CylinderGeometry(.55,.55,.12,16),coinMat=M(0xffc107);
+function mkCoin(){const d=rdir(),p=new T.Group(),sp=new T.Group(),m=new T.Mesh(coinGeo,coinMat);
+m.rotation.z=Math.PI/2;sp.position.y=1.1;sp.add(m);p.add(sp);place(p,d);scene.add(p);return{d,p,sp}}
+for(let i=0;i<30;i++)coins.push(mkCoin());
+// state
+const el=id=>document.getElementById(id);
+let score=0,time=45,run=false,spd=0,steer=0,boost=false,inL=0,inR=0,best=0,shake=0,hitCd=0;
+try{best=+localStorage.getItem('mpd_best')||0}catch(e){}
+el('hs').textContent='Best '+best;
+function hold(id,f){const e=el(id);
+['pointerdown','pointerenter'].forEach(n=>e.addEventListener(n,ev=>{ev.preventDefault();if(n==='pointerenter'&&!ev.buttons)return;f(1);e.classList.add('on')}));
+['pointerup','pointerleave','pointercancel'].forEach(n=>e.addEventListener(n,ev=>{f(0);e.classList.remove('on')}));
+e.addEventListener('contextmenu',ev=>ev.preventDefault())}
+hold('L',v=>inL=v);hold('R',v=>inR=v);hold('boost',v=>boost=!!v);
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')inL=1;if(e.key==='ArrowRight'||e.key==='d')inR=1;if(e.key===' ')boost=true});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')inL=0;if(e.key==='ArrowRight'||e.key==='d')inR=0;if(e.key===' ')boost=false});
+el('go').onclick=()=>{score=0;time=45;spd=0;rig.quaternion.identity();run=true;el('msg').style.display='none';el('sc').textContent='🪙 0'};
+function end(){run=false;if(score>best){best=score;try{localStorage.setItem('mpd_best',best)}catch(e){}el('hs').textContent='Best '+best}
+const m=el('msg');m.innerHTML='<h1>Time\'s up!</h1><p>You collected '+score+' coins 🪙</p><button id="go2">Play again</button>';m.style.display='flex';el('go2').onclick=el('go').onclick}
+const q=new T.Quaternion(),ax=new T.Vector3(1,0,0),cd=new T.Vector3();
+let last=performance.now();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min((now-last)/1000,.05);last=now;
+const tgtSteer=inL-inR;steer+=(tgtSteer-steer)*Math.min(1,dt*8);
+if(run){
+ const tgt=boost?17:10;spd+=(tgt-spd)*Math.min(1,dt*(spd>tgt?4:2));
+ rig.quaternion.multiply(q.setFromAxisAngle(UP,steer*dt*1.7*(.6+spd/25)));
+ rig.quaternion.multiply(q.setFromAxisAngle(ax,-spd*dt/R)).normalize();
+ cd.set(0,1,0).applyQuaternion(rig.quaternion);
+ hitCd-=dt;
+ for(const t of trees){if(hitCd<=0&&cd.dot(t.d)>Math.cos(1.5/R)){spd=1.5;shake=.4;hitCd=.6}}
+ for(const c of coins){if(cd.dot(c.d)>Math.cos(2/R)){scene.remove(c.p);Object.assign(c,mkCoin());score++;time+=2;el('sc').textContent='🪙 '+score}}
+ time-=dt;el('tm').textContent='⏱ '+Math.max(0,Math.ceil(time));if(time<=0)end();
+}
+for(const c of coins)c.sp.rotation.y+=dt*3;
+shake=Math.max(0,shake-dt);
+car.rotation.z=-steer*.18;car.rotation.y=steer*.12;car.position.x=shake?(Math.random()-.5)*.2:0;
+cam.fov=62+(run?spd*.5:0);cam.updateProjectionMatrix();
+ren.render(scene,cam)}
+requestAnimationFrame(loop);
+</script></body></html>
