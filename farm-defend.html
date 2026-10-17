@@ -54,19 +54,24 @@ function upPlots(){plots.forEach((p,i)=>{const b=$('plots').children[i];if(!b)re
  else{b.className='plot';b.innerHTML='🌱<br>'+Math.round(p.t/CR[p.k].t*100)+'%'}})}
 function tapPlot(i){const p=plots[i];if(over)return;
  if(!p.k){p.k=seed;p.t=0}else if(p.t>=CR[p.k].t){r[p.k]++;p.k=null;ui()}upPlots()}
-C.addEventListener('pointerdown',e=>{if(over||!wp)return;const b=C.getBoundingClientRect(),s=C.width/b.width,tx=Math.floor((e.clientX-b.left)*s/T),ty=Math.floor((e.clientY-b.top)*s/T);
+C.addEventListener('pointerdown',e=>{if(over)return;const b=C.getBoundingClientRect(),s=C.width/b.width,tx=Math.floor((e.clientX-b.left)*s/T),ty=Math.floor((e.clientY-b.top)*s/T);
+ const tw=towers.find(t=>t.tx==tx&&t.ty==ty);if(!wp){if(tw&&tw.hp<tw.mx){if(r.w>0){r.w--;tw.hp=tw.mx;say('Repaired! (-1🌾)');ui()}else say('Need 1🌾 to repair')}return}
  if(road.has(tx+','+ty)||(tx==7&&ty==5)){say("Can't build on the road!");return}
  if(towers.some(t=>t.tx==tx&&t.ty==ty)){say('Tile taken.');return}
  if(!can(wp)){say('Not enough crops — keep farming!');return}
  for(const k in WP[wp].cost)r[k]-=WP[wp].cost[k];
- towers.push({w:wp,tx,ty,x:tx*T+20,y:ty*T+20,cd:0});if(!can(wp))wp=null;ui()});
+ towers.push({w:wp,tx,ty,x:tx*T+20,y:ty*T+20,cd:0,hp:40,mx:40});if(!can(wp))wp=null;ui()});
 $('go').onclick=()=>{if(run||over)return;wave++;run=true;left=4+wave*2;st=0;$('go').disabled=true;$('go').textContent='Wave '+wave+' incoming!';say('Defend the castle!');ui()};
 function dmgE(e,d,slow){e.hp-=d;if(slow)e.sl=2}
 let last=performance.now(),acc=0;
 function loop(n){const dt=Math.min(.05,(n-last)/1000);last=n;
  if(!over){plots.forEach(p=>{if(p.k&&p.t<CR[p.k].t)p.t+=dt});
   if(run){st-=dt;if(left>0&&st<=0){en.push({d:0,hp:12+wave*9,mx:12+wave*9,v:38+wave*3,sl:0,x:0,y:0});left--;st=Math.max(.45,1-wave*.04)}
-   en.forEach(e=>{e.sl=Math.max(0,e.sl-dt);e.d+=e.v*(e.sl>0?.45:1)*dt;[e.x,e.y]=pos(e.d)});
+   en.forEach(e=>{e.sl=Math.max(0,e.sl-dt);const tw=towers.find(t=>Math.hypot(e.x-t.x,e.y-t.y)<46);
+   if(tw){e.fg=tw;e.ft=(e.ft||0)-dt;if(e.ft<=0){e.ft=.5;tw.hp-=2+wave;e.hp-=({b:4,k:8,f:3})[tw.w]}}
+   else e.d+=e.v*(e.sl>0?.45:1)*dt;
+   [e.x,e.y]=pos(e.d)});
+   towers=towers.filter(t=>t.hp>0);
    en=en.filter(e=>{if(e.d>=TL){hp--;ui();return false}return e.hp>0});
    if(hp<=0){over=true;say('💀 The castle fell at wave '+wave+'.');$('go').disabled=false;$('go').textContent='Play again';run=false;$('go').onclick=()=>{$('go').onclick=null;location.reload()}}
    else if(left==0&&!en.length){run=false;const k=['w','c','p'][wave%3];r[k]+=2;r.w+=1;$('go').disabled=false;$('go').textContent='Start Wave '+(wave+1);say('Wave cleared! Bonus: +1🌾 +2'+CR[k].e);ui()}}
@@ -82,8 +87,8 @@ function draw(){
  g.font='28px serif';g.textAlign='center';g.textBaseline='middle';
  g.fillText('🏰',7*T+20,5*T+22);
  if(wp){g.strokeStyle='rgba(255,255,255,.25)';for(let x=0;x<8;x++)for(let y=0;y<7;y++)if(!road.has(x+','+y))g.strokeRect(x*T+1,y*T+1,T-2,T-2)}
- towers.forEach(t=>{g.font='26px serif';g.fillText(WP[t.w].e,t.x,t.y+2)});
+ towers.forEach(t=>{g.font='26px serif';g.fillText(WP[t.w].e,t.x,t.y+2);if(t.hp<t.mx){g.fillStyle='#300';g.fillRect(t.x-14,t.y+15,28,4);g.fillStyle=t.hp/t.mx>.4?'#4c4':'#e44';g.fillRect(t.x-14,t.y+15,28*t.hp/t.mx,4)}});
  shots.forEach(s=>{g.strokeStyle=s.w=='f'?'#7fd4ff':s.w=='k'?'#ff7a1a':'#fff';g.lineWidth=3;g.beginPath();g.moveTo(s.a,s.b);g.lineTo(s.x,s.y);g.stroke();if(s.w!='b'){g.beginPath();g.arc(s.x,s.y,WP[s.w].sp,0,7);g.globalAlpha=.25;g.fillStyle=g.strokeStyle;g.fill();g.globalAlpha=1}});
- en.forEach(e=>{g.font='24px serif';g.fillText(e.sl>0?'🥶':'👹',e.x,e.y);g.fillStyle='#300';g.fillRect(e.x-14,e.y-20,28,4);g.fillStyle='#4c4';g.fillRect(e.x-14,e.y-20,28*Math.max(0,e.hp/e.mx),4)})}
+ en.forEach(e=>{g.font='24px serif';g.fillText(e.sl>0?'🥶':'👹',e.x,e.y);if(e.fg&&towers.includes(e.fg)&&Math.hypot(e.x-e.fg.x,e.y-e.fg.y)<46){g.font='14px serif';g.fillText('⚔️',e.x,e.y-26)}g.fillStyle='#300';g.fillRect(e.x-14,e.y-20,28,4);g.fillStyle='#4c4';g.fillRect(e.x-14,e.y-20,28*Math.max(0,e.hp/e.mx),4)})}
 init();requestAnimationFrame(loop);
 </script></body></html>
