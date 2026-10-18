@@ -63,9 +63,9 @@ function newGame(){sol=Array(81).fill(0);fill(sol);const p=sol.slice(),keep=+$('
 let clues=81;for(const i of shuffle([...Array(81).keys()])){if(clues<=keep)break;const v=p[i];p[i]=0;if(count(p.slice())!==1)p[i]=v;else clues--}
 giv=p.map(v=>v>0);cur=p.slice();nt=Array.from({length:81},()=>new Set());sel=-1;mist=0;hist=[];over=false;t0=Date.now();$('#msg').style.display='none';draw()}
 const snap=()=>hist.push([cur.slice(),nt.map(s=>new Set(s)),mist]);
-function input(n){if(showSol||over||sel<0||giv[sel])return;snap();
-if(nm){if(cur[sel])return;nt[sel].has(n)?nt[sel].delete(n):nt[sel].add(n)}
-else{if(cur[sel]===n){cur[sel]=0}else{cur[sel]=n;nt[sel].clear();if(n!==sol[sel]){mist++}
+function input(n){if(showSol||over||sel<0||giv[sel])return;
+if(nm){if(cur[sel])return;snap();nt[sel].has(n)?nt[sel].delete(n):nt[sel].add(n)}
+else{snap();if(cur[sel]===n){cur[sel]=0}else{cur[sel]=n;nt[sel].clear();if(n!==sol[sel]){mist++}
 const r=R(sel),c=C(sel),br=r-r%3,bc=c-c%3;for(let k=0;k<81;k++){if(R(k)===r||C(k)===c||(R(k)-R(k)%3===br&&C(k)-C(k)%3===bc))nt[k].delete(n)}}}
 draw();check()}
 function check(){if(mist>=3){end('Game over','Three mistakes. Try again!')}
@@ -86,7 +86,7 @@ $('#note').classList.toggle('on',nm);tick()}
 function tick(){$('#info').textContent='Mistakes '+mist+'/3 · '+fmt()}
 setInterval(()=>{if(!over)tick()},1000);
 $('#undo').onclick=()=>{if(over||!hist.length)return;[cur,nt,mist]=hist.pop();draw()};
-$('#erase').onclick=()=>{if(over||sel<0||giv[sel])return;snap();cur[sel]=0;nt[sel].clear();draw()};
+$('#erase').onclick=()=>{if(over||sel<0||giv[sel])return;if(!cur[sel]&&!nt[sel].size)return;snap();cur[sel]=0;nt[sel].clear();draw()};
 $('#note').onclick=()=>{nm=!nm;draw()};
 $('#hint').onclick=()=>{if(over)return;let i=sel>=0&&!giv[sel]&&cur[sel]!==sol[sel]?sel:cur.findIndex((v,k)=>v!==sol[k]);if(i<0)return;snap();sel=i;cur[i]=sol[i];nt[i].clear();mist=Math.min(mist,2)+(mist>=3?1:0);draw();check()};
 $('#new').onclick=newGame;

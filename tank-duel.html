@@ -48,7 +48,7 @@ function start(sd,wind){gen(sd);S={hp:[100,100],x:[100,700],sh:[0,0],it:[null,nu
 function beginTurn(){st='aim';tl=15;moved=0;armed=null;aiT=80}
 function newSeed(){return{sd:Math.random()*1e9|0,w:Math.round((Math.random()*2-1)*8)}}
 function playAI(){mode='ai';me=0;const n=newSeed();start(n.sd,n.w)}
-function again(){if(mode=='ai')return playAI();const n=newSeed();conn.send({t:'s',seed:n.sd,wind:n.w});start(n.sd,n.w)}
+function again(){if(mode=='ai')return playAI();if(mode=='net'&&me!==0)return;const n=newSeed();conn.send({t:'s',seed:n.sd,wind:n.w});start(n.sd,n.w)}
 function fire(i,th,p,ty){const x=S.x[i],y=gy(x)-14,v=p*.09,l=ty=='t'?[-.1,0,.1]:[0];ang[i]=th;
 shells=l.map(d=>({x,y,vx:Math.cos(th+d)*v,vy:Math.sin(th+d)*v,big:ty=='b',own:i,t:0}));st='fly';tone(200,.3,'sawtooth',.25,-150);vib(30)}
 function stepShell(s){s.t++;s.x+=s.vx;s.y+=s.vy;s.vy+=.12;s.vx+=S.wind*.002;
@@ -72,7 +72,7 @@ if(mode=='net')conn.send({t:'e',S});
 after()}
 function applyEnd(){S=pend;pend=null;after()}
 function after(){if(S.hp[0]<=0||S.hp[1]<=0){over=1;st='over';const a=S.hp[0]>0,b=S.hp[1]>0,w=mine();
-$('ot').textContent=(!a&&!b)?'Draw':((w==0?a:b)?'You win!':(mode=='ai'?'AI wins':'You lose'));tone(w?400:500,.6,'triangle',.3,300);setTimeout(()=>$('o').style.display='flex',900)}else beginTurn()}
+$('ot').textContent=(!a&&!b)?'Draw':((w==0?a:b)?'You win!':(mode=='ai'?'AI wins':'You lose'));$('bag').style.display=(mode!='net'||me===0)?'':'none';tone(w?400:500,.6,'triangle',.3,300);setTimeout(()=>$('o').style.display='flex',900)}else beginTurn()}
 /* AI */
 function aiPlay(){let ty=null;
 if(S.hp[1]<50&&S.it[1]=='h'){S.hp[1]=Math.min(100,S.hp[1]+30);S.it[1]=null;tone(700,.2,'sine',.2,300)}

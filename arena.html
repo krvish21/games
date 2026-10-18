@@ -62,7 +62,7 @@ function step(dt){
  const ins=[inp0,mode=='ai'?aiInput(dt):inp1];
  for(let i=0;i<2;i++){const p=S.p[i],o=S.p[1-i],n=ins[i];
   p.fc-=dt;p.inv-=dt;p.tri-=dt;p.spd-=dt;p.dash-=dt;
-  if(n.s&&p.en>1){if(!p.sh)p.shT=0;p.sh=1;p.shT+=dt;p.en-=35*dt}else{p.sh=0;p.en=Math.min(100,p.en+18*dt)}
+  if(n.s&&p.en>1){if(!p.sh)p.shT=0;p.sh=1;p.shT+=dt;p.en=Math.max(0,p.en-35*dt)}else{p.sh=0;p.en=Math.min(100,p.en+18*dt)}
   if(n.d&&p.dash<=-.3&&p.en>=30){p.en-=30;p.dash=.15;p.inv=.25;const l=Math.hypot(n.x,n.y);
    if(l<.1){const a=Math.atan2(o.y-p.y,o.x-p.x);p.dx=-Math.sin(a);p.dy=Math.cos(a)}else{p.dx=n.x/l;p.dy=n.y/l}ev.push('d')}
   let vx,vy;

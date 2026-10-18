@@ -67,12 +67,11 @@ function go(c){const r=low(bd,c);if(r<0)return;bd[r*C+c]=turn;busy=true;const w=
  if(bd.every(Boolean)){over=true;draw(null,r*C+c,r+1);msg.textContent="It's a draw";document.getElementById('again').style.visibility='visible';return}
  turn=turn==='A'?'B':'A';draw(null,r*C+c,r+1);setTimeout(()=>{busy=false;draw();if(cpu&&turn==='B')later()},400)}
 function later(){setTimeout(ai,350)}
-function ai(){if(over)return;const ok=[...Array(C).keys()].filter(c=>low(bd,c)>=0);
+function ai(){if(over||busy||!cpu||turn!=='B')return;const ok=[...Array(C).keys()].filter(c=>low(bd,c)>=0);
  const wins=(p,c)=>{const r=low(bd,c);bd[r*C+c]=p;const w=!!win(bd,p);bd[r*C+c]=null;return w};
  let pick=ok.find(c=>wins('B',c));if(pick===undefined)pick=ok.find(c=>wins('A',c));
  if(pick===undefined){let best=-1e9;for(const c of ok){const r=low(bd,c);let s=3-Math.abs(c-3)+Math.random()*1.5;
   if(r>0){bd[r*C+c]='B';if(wins('A',c))s-=20;bd[r*C+c]=null}
-  if(r>0){bd[r*C+c]='A';bd[(r-1)*C+c]=null;bd[r*C+c]=null}
   if(s>best){best=s;pick=c}}}
  busy=false;go(pick)}
 function setMode(m){cpu=m;document.getElementById('m1').classList.toggle('on',m);document.getElementById('m2').classList.toggle('on',!m);score={A:0,B:0};start='A';reset()}

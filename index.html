@@ -66,7 +66,7 @@
   // To add a new game, just add a line here.
   const games = [
     {file:"arena.html",                  title:"Arena",                icon:"🔫", desc:"Shooting PvP showdown. Outgun your rival.",     tag:"Multiplayer", multi:true},
-    {file:"avengers.html",               title:"Avengers Top Trumps",  icon:"🦸", desc:"Trump card battle with Avengers stats.",        tag:"2 Players"},
+    {file:"avengers.html",               title:"Marvel Ludo",          icon:"🦸", desc:"Lap the board, claim Infinity Stones and snap.", tag:"Multiplayer", multi:true},
     {file:"marvel-duel.html",            title:"Marvel Duel",          icon:"⚡", desc:"Pick a hero and duel the AI.",                  tag:"vs AI"},
     {file:"dropfour.html",               title:"Drop Four",            icon:"🔴", desc:"Drop discs and connect four in a row.",         tag:"2 Players"},
     {file:"farm-defend.html",            title:"Farm Defend",          icon:"🌾", desc:"Grow crops, get weapons, defend your base.",    tag:"Solo"},
@@ -97,7 +97,7 @@
         <span class="tag ${g.multi ? 'multi' : ''}">${g.tag}</span>
       </a>`).join('');
     empty.style.display = list.length ? 'none' : 'block';
-    count.textContent = games.length + ' games';
+    count.textContent = list.length + (list.length === 1 ? ' game' : ' games');
   }
 
   q.addEventListener('input', () => {

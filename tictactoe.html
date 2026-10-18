@@ -66,7 +66,7 @@ function tap(i){if(over||board[i]||(cpu&&turn==='O'))return;go(i)}
 function go(i){const r=place(board,mv,turn,i);board=r.bd;mv=r.m;const w=winner(board);
  if(w){over=true;score[turn]++;draw(w);msg.textContent=(cpu&&turn==='O'?'Phone':turn)+' wins!';document.getElementById('again').style.visibility='visible';if(navigator.vibrate)navigator.vibrate(80);return}
  turn=turn==='X'?'O':'X';draw();if(cpu&&turn==='O')setTimeout(ai,550)}
-function ai(){if(over)return;const free=[...Array(9).keys()].filter(i=>!board[i]);
+function ai(){if(over||!cpu||turn!=='O')return;const free=[...Array(9).keys()].filter(i=>!board[i]);
  const test=(p,i)=>{const r=place(board,mv,p,i);return !!winner(r.bd)};
  let pick=free.find(i=>test('O',i));
  if(pick===undefined)pick=free.find(i=>test('X',i));
