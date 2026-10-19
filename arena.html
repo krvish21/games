@@ -122,6 +122,25 @@ function join(){const c=$('code').value.trim();if(c.length<4)return st('Enter th
   conn.on('open',()=>startMode('guest'));
   conn.on('data',d=>{S=d;playEv(d.ev)});
   conn.on('close',()=>{st('Disconnected.');menu()})})}
+function checkCarried(){
+  try{
+    const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
+    if(carried && carried.conn){
+      conn = carried.conn;
+      if(carried.isHost){
+        startMode('host');
+        conn.on('data',d=>{if(d.i)inp1=d.i;if(d.r&&S&&S.over>=0)newGame()});
+      }else{
+        startMode('guest');
+        conn.on('data',d=>{if(!d.__qgam&&d.p){S=d;playEv(d.ev)}});
+      }
+      conn.on('close',()=>{st('Friend left.');menu()});
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+checkCarried();
 // ---- draw ----
 function draw(){g.clearRect(0,0,W,H);if(!S)return;const me=flip?1:0;
  g.save();if(flip){g.translate(W,H);g.rotate(Math.PI)}

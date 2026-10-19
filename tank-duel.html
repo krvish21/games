@@ -109,10 +109,31 @@ function onMsg(m){
 if(m.t=='s'){mode='net';me=1;start(m.seed,m.wind)}
 else if(!S)return;
 else if(m.t=='m')S.x[1-me]=m.x;
-else if(m.t=='y'){S.hp=m.hp;S.sh=m.sh;S.it=m.it;S.crate=m.cr}
 else if(m.t=='f'){S.x[S.turn]=m.x;if(m.ty)S.it[S.turn]=null;fire(S.turn,m.th,m.p,m.ty)}
 else if(m.t=='e'){pend=m.S;if(st!='fly')applyEnd()}}
 $('bai').addEventListener('click',()=>{AC();land();playAI()});$('bho').addEventListener('click',()=>{AC();land();host()});$('bjo').addEventListener('click',()=>{AC();land();join()});$('bag').addEventListener('click',()=>again());
+function checkCarried(){
+  try{
+    const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
+    if(carried && carried.conn){
+      AC(); land();
+      mode = 'net';
+      if(carried.isHost){
+        me = 0;
+        setup(carried.conn);
+        const n = newSeed();
+        carried.conn.send({t:'s',seed:n.sd,wind:n.w});
+        start(n.sd,n.w);
+      }else{
+        me = 1;
+        setup(carried.conn);
+      }
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+checkCarried();
 /* loop */
 function update(){
 if(st=='aim'&&!over){tl-=1/60;

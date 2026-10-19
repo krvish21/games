@@ -817,6 +817,20 @@ function loop(now) {
 View.init();
 bindInput();
 bindMenu();
+function checkCarried(){
+  try{
+    const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
+    if(carried && carried.conn){
+      isHost = !!carried.isHost;
+      Net.setConn(carried.conn);
+      setNetLabel(true);
+      startMatch();
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+checkCarried();
 setNetLabel(false);
 requestAnimationFrame(loop);
 </script>

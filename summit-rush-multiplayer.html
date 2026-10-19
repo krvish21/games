@@ -435,4 +435,32 @@ function roll(){
 function copyLink(){const u=location.origin+location.pathname+'?room='+code,b=$('copy');
  (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>b.textContent='Copied!',()=>prompt('Copy this link',u));setTimeout(()=>b.textContent='Copy invite link',1500)}
 const qr=new URLSearchParams(location.search).get('room');if(qr)$('join').value=qr.slice(0,4);
+function checkCarried(){
+  try{
+    const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
+    if(carried && carried.conn){
+      ac();
+      conn = carried.conn;
+      if(carried.isHost){
+        isHost = true;
+        me = 'host';
+        P = [newP('host', myName() || 'Host')];
+        cmap[conn.peer] = conn;
+        P.push(newP(conn.peer, carried.guestName || 'Climber 2'));
+        conn.on('data', d => onData(conn, d));
+        conn.on('close', () => onLeave(conn.peer));
+        phase = 'config';
+        bc();
+      }else{
+        isHost = false;
+        me = conn.peer || 'guest';
+        conn.on('data', d => { if(d.t==='s') apply(d.s); });
+        conn.on('close', () => say('Disconnected', 'The host left the game.'));
+      }
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+checkCarried();
 </script></body></html>

@@ -5,107 +5,732 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14151a">
 <title>QGam – Game Arcade</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
-  :root{
-    --bg:#14151a; --card:#1f2128; --card2:#262933; --text:#f1f2f6; --muted:#9aa0b0; --accent:#6ea8ff;
+  :root {
+    --bg: #14151a;
+    --card: #1f2128;
+    --card2: #262933;
+    --text: #f1f2f6;
+    --muted: #9aa0b0;
+    --accent: #6ea8ff;
+    --accent2: #4d7cff;
+    --green: #2ecc71;
+    --gold: #ffd23f;
+    --danger: #e5484d;
+    --border: #2f3340;
   }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  body{
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    background:radial-gradient(1200px 600px at 50% -200px,#2a2f55 0%,var(--bg) 60%) fixed;
-    color:var(--text);min-height:100vh;
-    padding:max(20px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -200px, #2a2f55 0%, var(--bg) 60%) fixed;
+    color: var(--text);
+    min-height: 100vh;
+    padding: max(20px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
   }
-  header{max-width:900px;margin:0 auto 18px;text-align:center}
-  h1{font-size:2rem;letter-spacing:.5px}
-  h1 span{color:var(--accent)}
-  header p{color:var(--muted);margin-top:6px;font-size:.95rem}
-  .search{
-    display:block;width:100%;max-width:900px;margin:0 auto 18px;
-    padding:12px 16px;border-radius:14px;border:1px solid #333747;
-    background:var(--card);color:var(--text);font-size:1rem;outline:none;
+  header { max-width: 920px; margin: 0 auto 16px; text-align: center; }
+  h1 { font-size: 2.2rem; letter-spacing: .5px; }
+  h1 span { color: var(--accent); }
+  header p { color: var(--muted); margin-top: 4px; font-size: .95rem; }
+
+  /* Category Navigation */
+  .cat-nav {
+    display: flex;
+    max-width: 920px;
+    margin: 0 auto 16px;
+    background: rgba(26, 29, 39, 0.7);
+    padding: 5px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    gap: 6px;
   }
-  .search:focus{border-color:var(--accent)}
-  .grid{
-    max-width:900px;margin:0 auto;display:grid;gap:14px;
-    grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+  .cat-btn {
+    flex: 1;
+    background: transparent;
+    color: var(--muted);
+    border: 0;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all .18s ease;
   }
-  a.card{
-    display:flex;flex-direction:column;gap:6px;text-decoration:none;color:inherit;
-    background:linear-gradient(160deg,var(--card2),var(--card));
-    border:1px solid #2f3340;border-radius:18px;padding:16px;
-    transition:transform .15s,border-color .15s,box-shadow .15s;
-    min-height:150px;
+  .cat-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .cat-btn.active {
+    background: linear-gradient(135deg, #32406d, #20263f);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    border: 1px solid #43548a;
   }
-  a.card:hover,a.card:focus-visible{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 24px rgba(0,0,0,.4);outline:none}
-  a.card:active{transform:scale(.97)}
-  .icon{font-size:2.4rem;line-height:1}
-  .title{font-weight:700;font-size:1.05rem;margin-top:4px}
-  .desc{color:var(--muted);font-size:.82rem;line-height:1.35;flex:1}
-  .tag{
-    align-self:flex-start;font-size:.7rem;font-weight:600;padding:3px 9px;border-radius:99px;
-    background:#2d3a5e;color:#b7d0ff;
+  .cat-badge {
+    background: rgba(255,255,255,0.14);
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
   }
-  .tag.multi{background:#3b2d5e;color:#d9c2ff}
-  .empty{text-align:center;color:var(--muted);margin-top:30px;display:none}
-  footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:28px}
+  .cat-btn.active .cat-badge {
+    background: var(--accent);
+    color: #0b1124;
+  }
+
+  /* Search */
+  .search-wrap { max-width: 920px; margin: 0 auto 18px; }
+  .search {
+    display: block; width: 100%;
+    padding: 12px 18px; border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--card); color: var(--text);
+    font-size: 1rem; outline: none;
+    transition: border-color .15s;
+  }
+  .search:focus { border-color: var(--accent); }
+
+  /* Multiplayer Lobby Box */
+  .mp-lobby {
+    max-width: 920px;
+    margin: 0 auto 22px;
+    background: linear-gradient(160deg, #1f253a, #181b26);
+    border: 2px solid #364268;
+    border-radius: 20px;
+    padding: 18px 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  }
+  .mp-lobby-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .mp-lobby-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.25rem;
+    font-weight: 800;
+  }
+  .pulse-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 10px var(--green);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(0.85)} }
+  .status-pill {
+    font-size: .8rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 99px;
+    background: #2a3147;
+    color: var(--muted);
+  }
+  .status-pill.online { background: #1a422b; color: #4ade80; border: 1px solid #22c55e; }
+  .status-pill.waiting { background: #4a3a14; color: #fde047; border: 1px solid #eab308; }
+  .mp-lobby p.desc { color: var(--muted); font-size: .88rem; margin-bottom: 14px; line-height: 1.4; }
+
+  .mp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 580px) { .mp-grid { grid-template-columns: 1fr; } }
+  .mp-card {
+    background: rgba(14, 17, 26, 0.6);
+    border: 1px solid #2c3552;
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mp-card h4 { font-size: 1rem; color: #d6e2ff; }
+  .mp-card p { font-size: .8rem; color: var(--muted); flex: 1; }
+  .btn {
+    font: inherit;
+    font-weight: 700;
+    border: 0;
+    border-radius: 10px;
+    padding: 11px 16px;
+    cursor: pointer;
+    transition: transform .08s, filter .12s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-host { background: linear-gradient(90deg, #3b82f6, #6366f1); color: #fff; }
+  .btn-join { background: #27ae60; color: #fff; }
+  .btn-sub { background: #2b334d; color: #e2e8f0; font-size: .85rem; padding: 8px 14px; }
+  .btn-sub:hover { background: #3b4668; }
+  .btn-danger { background: #5a2428; color: #fca5a5; }
+  .btn-danger:hover { background: #7f2b31; }
+
+  .join-box { display: flex; gap: 8px; }
+  .join-input {
+    flex: 1; min-width: 0;
+    background: #141724; border: 1px solid #3b4466;
+    color: #fff; font-size: 1.05rem; font-weight: 800;
+    border-radius: 10px; padding: 8px 12px;
+    text-align: center; text-transform: uppercase;
+    letter-spacing: 3px;
+  }
+  .join-input:focus { border-color: var(--accent); outline: none; }
+
+  /* Active connected lobby state */
+  .mp-active-box {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #38bdf8;
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .room-tag {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .room-code-badge {
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: var(--gold);
+    background: #0f172a;
+    padding: 4px 14px;
+    border-radius: 8px;
+    border: 1px dashed #ffd23f;
+  }
+  .room-note { font-size: .88rem; color: #e2e8f0; }
+  .room-note b { color: #4ade80; }
+  .lobby-feedback {
+    min-height: 20px; font-size: .85rem; margin-top: 8px; color: var(--gold);
+  }
+
+  /* Game Grid */
+  .grid-title {
+    max-width: 920px;
+    margin: 14px auto 10px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .grid {
+    max-width: 920px;
+    margin: 0 auto;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-decoration: none;
+    color: inherit;
+    background: linear-gradient(160deg, var(--card2), var(--card));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px;
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+    min-height: 155px;
+    cursor: pointer;
+  }
+  .card:hover, .card:focus-visible {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    outline: none;
+  }
+  .card:active { transform: scale(.97); }
+  .icon { font-size: 2.3rem; line-height: 1; }
+  .title { font-weight: 700; font-size: 1.05rem; margin-top: 4px; }
+  .desc { color: var(--muted); font-size: .82rem; line-height: 1.35; flex: 1; }
+  .tag {
+    align-self: flex-start; font-size: .7rem; font-weight: 600; padding: 3px 9px; border-radius: 99px;
+    background: #2d3a5e; color: #b7d0ff;
+  }
+  .tag.multi { background: #3b2d5e; color: #d9c2ff; }
+  .tag.online { background: #1b3d2b; color: #86efac; border: 1px solid #22c55e44; }
+  .empty { text-align: center; color: var(--muted); margin-top: 30px; display: none; }
+  footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 32px; }
+
+  /* Fullscreen In-Arcade Game Container (Iframe) */
+  #game-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #0b0d14;
+    display: none;
+    flex-direction: column;
+  }
+  #game-overlay.open { display: flex; }
+  .overlay-bar {
+    height: 48px;
+    background: #141724;
+    border-bottom: 1px solid #2a3147;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    flex: none;
+    z-index: 10;
+  }
+  .overlay-left { display: flex; align-items: center; gap: 12px; }
+  .overlay-exit {
+    background: #23293d; color: #e2e8f0; border: 0;
+    border-radius: 8px; padding: 6px 12px; font: inherit;
+    font-size: .85rem; font-weight: 700; cursor: pointer;
+  }
+  .overlay-exit:hover { background: #323b57; }
+  .overlay-title { font-weight: 800; font-size: .95rem; color: #fff; }
+  .overlay-room {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #1e293b; color: #38bdf8;
+    padding: 4px 10px; border-radius: 99px; font-size: .75rem; font-weight: 700;
+  }
+  .overlay-frame {
+    flex: 1; width: 100%; border: 0; background: #000;
+  }
 </style>
 </head>
 <body>
+
 <header>
   <h1>🎮 <span>QGam</span> Arcade</h1>
-  <p>Tap a card to play</p>
+  <p>Play solo or duel friends online</p>
 </header>
 
-<input class="search" id="q" type="search" placeholder="Search games…" autocomplete="off">
+<!-- Category Selector -->
+<nav class="cat-nav" role="tablist">
+  <button id="tab-sp" class="cat-btn" onclick="setCategory('single')" role="tab" aria-selected="false">
+    <span>👤</span> Single Player <span class="cat-badge" id="badge-sp">0</span>
+  </button>
+  <button id="tab-mp" class="cat-btn" onclick="setCategory('multi')" role="tab" aria-selected="false">
+    <span>👥</span> Multiplayer <span class="cat-badge" id="badge-mp">0</span>
+  </button>
+</nav>
+
+<!-- Live Multiplayer Lobby Box (visible when Multiplayer is active) -->
+<section id="mp-lobby-section" class="mp-lobby" style="display:none;">
+  <div class="mp-lobby-top">
+    <div class="mp-lobby-title">
+      <div class="pulse-dot"></div>
+      <span>🌐 Multiplayer Matchmaker</span>
+    </div>
+    <span class="status-pill" id="lobby-pill">Offline</span>
+  </div>
+  <p class="desc">
+    Host or join a room first! When connected, tap any multiplayer game below to automatically launch it on both screens with the connection carried in.
+  </p>
+
+  <div id="mp-setup-controls" class="mp-grid">
+    <div class="mp-card">
+      <h4>👑 Host a Room</h4>
+      <p>Create a room code and invite your friend to duel.</p>
+      <button class="btn btn-host" id="btn-host" onclick="hostRoom()">
+        Create Room
+      </button>
+    </div>
+    <div class="mp-card">
+      <h4>🎯 Join a Room</h4>
+      <p>Enter the 4-character code from your friend.</p>
+      <div class="join-box">
+        <input class="join-input" id="join-code" placeholder="CODE" maxlength="4" autocomplete="off" autocapitalize="characters">
+        <button class="btn btn-join" id="btn-join" onclick="joinRoom()">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mp-active-controls" class="mp-active-box" style="display:none;">
+    <div class="room-tag">
+      <div>
+        <div style="font-size:0.75rem; color:var(--muted); font-weight:700;">ROOM CODE</div>
+        <div class="room-code-badge" id="active-code-disp">----</div>
+      </div>
+      <div>
+        <div class="room-note" id="active-status-msg">Waiting for friend to join…</div>
+        <div style="font-size:0.75rem; color:var(--muted); margin-top:2px;">Select any game below to start together!</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-sub" onclick="copyInviteLink()">📋 Copy Link</button>
+      <button class="btn btn-sub btn-danger" onclick="disconnectRoom()">Leave</button>
+    </div>
+  </div>
+  <div class="lobby-feedback" id="lobby-feedback"></div>
+</section>
+
+<!-- Search Input -->
+<div class="search-wrap">
+  <input class="search" id="q" type="search" placeholder="Search games in this category…" autocomplete="off">
+</div>
+
+<!-- Section Header -->
+<div class="grid-title">
+  <span id="section-heading">Games</span>
+  <span id="count" style="font-size:0.85rem;"></span>
+</div>
+
+<!-- Game Cards Grid -->
 <main class="grid" id="grid"></main>
 <p class="empty" id="empty">No games found.</p>
-<footer id="count"></footer>
+
+<footer id="footer-text">QGam Arcade · Instant zero-install web gaming</footer>
+
+<!-- Fullscreen Game Container Overlay -->
+<div id="game-overlay">
+  <div class="overlay-bar">
+    <div class="overlay-left">
+      <button class="overlay-exit" onclick="exitGame()">‹ Exit to Arcade</button>
+      <div class="overlay-title" id="overlay-title">Game</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="overlay-room" id="overlay-room-tag" style="display:none;">
+        <span class="pulse-dot"></span> Room: <span id="overlay-room-num"></span>
+      </span>
+      <button class="overlay-exit" onclick="toggleOverlayFS()" title="Toggle Fullscreen">⛶</button>
+    </div>
+  </div>
+  <iframe id="game-frame" class="overlay-frame" src="about:blank" allow="autoplay; accelerometer; gyroscope; fullscreen"></iframe>
+</div>
 
 <script>
-  // To add a new game, just add a line here.
+  // All arcade games categorized
   const games = [
-    {file:"arena.html",                  title:"Arena",                icon:"🔫", desc:"Shooting PvP showdown. Outgun your rival.",     tag:"Multiplayer", multi:true},
-    {file:"avengers.html",               title:"Marvel Ludo",          icon:"🦸", desc:"Lap the board, claim Infinity Stones and snap.", tag:"Multiplayer", multi:true},
-    {file:"marvel-duel.html",            title:"Marvel Duel",          icon:"⚡", desc:"Pick a hero and duel the AI.",                  tag:"vs AI"},
-    {file:"dropfour.html",               title:"Drop Four",            icon:"🔴", desc:"Drop discs and connect four in a row.",         tag:"2 Players"},
-    {file:"farm-defend.html",            title:"Farm Defend",          icon:"🌾", desc:"Grow crops, get weapons, defend your base.",    tag:"Solo"},
-    {file:"kiket.html",                  title:"Cricket",              icon:"🏏", desc:"Time your tap and hit the ball.",               tag:"Solo"},
-    {file:"ludo.html",                   title:"Ludo",                 icon:"🎲", desc:"Classic Ludo, pass and play.",                  tag:"Multiplayer", multi:true},
-    {file:"mini-planet.html",            title:"Mini Planet",          icon:"🪐", desc:"Tiny world simulation to explore.",             tag:"Solo"},
-    {file:"red-green-light.html",        title:"Red Light, Green Light",icon:"🚦", desc:"Move on green, freeze on red.",                tag:"Solo"},
-    {file:"strikezone.html",             title:"Strike Zone",          icon:"🎯", desc:"Aim, strike and hit the zone.",                 tag:"Solo"},
-    {file:"sudoku.html",                 title:"Sudoku",               icon:"🔢", desc:"Classic number puzzle. Fill the grid.",         tag:"Solo"},
-    {file:"summit-rush.html",            title:"Summit Rush",          icon:"🏔️", desc:"Dice-roll race to the summit.",                 tag:"Solo"},
-    {file:"summit-rush-multiplayer.html",title:"Summit Rush Online",   icon:"🧗", desc:"Tactical summit race with friends.",            tag:"Multiplayer", multi:true},
-    {file:"tank-duel.html",              title:"Tank Duel",            icon:"🛡️", desc:"Outgun your opponent's tank.",                  tag:"2 Players"},
-    {file:"taprace.html",                title:"Tap Race",             icon:"🏎️", desc:"Tap faster to win the race.",                   tag:"Multiplayer", multi:true},
-    {file:"tictactoe.html",              title:"Tic Tac Toe",          icon:"❌", desc:"The classic X and O showdown.",                 tag:"2 Players"}
+    // --- Single Player Games ---
+    {file:"strikezone.html",              category:"single", title:"Strike Zone",            icon:"🎯", desc:"3D tactical FPS arena against bots. Aim for headshots.",  tag:"Solo (FPS)"},
+    {file:"kiket.html",                   category:"single", title:"Cricket",                icon:"🏏", desc:"Time your tap to hit 4s and 6s before wickets run out.",   tag:"Solo (Arcade)"},
+    {file:"farm-defend.html",             category:"single", title:"Farm Defend",            icon:"🌾", desc:"Grow wheat, corn & pumpkins to build defensive towers.",   tag:"Solo (Strategy)"},
+    {file:"gravity-heist.html",          category:"single", title:"Gravity Flip Heist",     icon:"💎", desc:"Slide, grab gems and reach the exit. Solved with BFS.",     tag:"Solo (Puzzle)"},
+    {file:"mini-planet.html",             category:"single", title:"Mini Planet",            icon:"🪐", desc:"3D low-poly spherical world driving and coin collection.",  tag:"Solo (3D Drive)"},
+    {file:"red-green-light.html",         category:"single", title:"Red Light, Green Light", icon:"🚦", desc:"Run on green, freeze on red before the giant doll turns.", tag:"Solo (Survival)"},
+    {file:"sudoku.html",                  category:"single", title:"Sudoku",                 icon:"🔢", desc:"Classic number puzzle with notes, hints & unique solutions.",tag:"Solo (Logic)"},
+    {file:"summit-rush.html",             category:"single", title:"Summit Rush",            icon:"🏔️", desc:"Dice-roll race to the mountain peak dodging hurdles.",     tag:"Solo / Pass & Play"},
+    {file:"marvel-duel.html",             category:"single", title:"Marvel Duel",            icon:"⚡", desc:"Pick Spider-Man, Hulk, Wolverine or Venom vs AI.",         tag:"vs CPU AI"},
+    {file:"dropfour.html",                category:"single", title:"Drop Four",              icon:"🔴", desc:"Drop discs and connect four in a row vs Phone.",          tag:"vs Phone"},
+    {file:"tictactoe.html",               category:"single", title:"Tic Tac Toe",            icon:"❌", desc:"Vanish X and O showdown vs Phone. 3 marks max.",           tag:"vs Phone"},
+
+    // --- Multiplayer Games ---
+    {file:"arena.html",                   category:"multi",  title:"Arena Duel",             icon:"🔫", desc:"Top-down twin-stick PvP shooter. Shield, parry and dash.", tag:"Online P2P", onlineMp:true},
+    {file:"arrow-duel.html",              category:"multi",  title:"Arrow Duel 3D",          icon:"🏹", desc:"3D first-person archery showdown with trajectory ballistics.", tag:"Online P2P", onlineMp:true},
+    {file:"avengers.html",                category:"multi",  title:"Marvel Ludo",           icon:"🦸", desc:"Race the track, claim Infinity Stones and snap to win.",   tag:"Online P2P", onlineMp:true},
+    {file:"summit-rush-multiplayer.html", category:"multi",  title:"Summit Rush Online",    icon:"🧗", desc:"Tactical summit race with 18 hidden fog-of-war hurdles.",   tag:"Online P2P", onlineMp:true},
+    {file:"tank-duel.html",               category:"multi",  title:"Tank Duel",             icon:"🛡️", desc:"Destructible terrain artillery duel with wind & crates.",   tag:"Online P2P", onlineMp:true},
+    {file:"taprace.html",                 category:"multi",  title:"Tap Race",              icon:"🏎️", desc:"High-speed drag race. Rhythm tap combos beat your rival.", tag:"Online P2P", onlineMp:true},
+    {file:"ludo.html",                    category:"multi",  title:"Ludo",                  icon:"🎲", desc:"Classic 2-4 players Ludo board. Pass and play.",           tag:"Local 2-4P"},
+    {file:"marvel-duel.html",             category:"multi",  title:"Marvel Duel (2P)",       icon:"⚔️", desc:"2-player local arcade hero arena on the same screen.",     tag:"Local 2P"},
+    {file:"dropfour.html",                category:"multi",  title:"Drop Four (2P)",         icon:"🔴", desc:"Connect four discs in a row with a friend locally.",       tag:"Local 2P"},
+    {file:"tictactoe.html",               category:"multi",  title:"Tic Tac Toe (2P)",       icon:"❌", desc:"Dynamic vanishing tic-tac-toe for 2 players.",             tag:"Local 2P"}
   ];
 
+  // DOM Elements
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
   const count = document.getElementById('count');
   const q = document.getElementById('q');
+  const tabSp = document.getElementById('tab-sp');
+  const tabMp = document.getElementById('tab-mp');
+  const badgeSp = document.getElementById('badge-sp');
+  const badgeMp = document.getElementById('badge-mp');
+  const mpLobbySection = document.getElementById('mp-lobby-section');
+  const sectionHeading = document.getElementById('section-heading');
+  const lobbyPill = document.getElementById('lobby-pill');
+  const mpSetupControls = document.getElementById('mp-setup-controls');
+  const mpActiveControls = document.getElementById('mp-active-controls');
+  const activeCodeDisp = document.getElementById('active-code-disp');
+  const activeStatusMsg = document.getElementById('active-status-msg');
+  const lobbyFeedback = document.getElementById('lobby-feedback');
+  const gameOverlay = document.getElementById('game-overlay');
+  const gameFrame = document.getElementById('game-frame');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayRoomTag = document.getElementById('overlay-room-tag');
+  const overlayRoomNum = document.getElementById('overlay-room-num');
 
-  function render(list){
+  // App State
+  let currentCategory = 'single';
+  let activePeer = null;
+  let activeConn = null;
+  let isHost = false;
+  let roomCode = '';
+  let isConnected = false;
+
+  // Carried connection object made available to child iframes
+  window.carriedConnection = null;
+
+  function initCounts() {
+    badgeSp.textContent = games.filter(g => g.category === 'single').length;
+    badgeMp.textContent = games.filter(g => g.category === 'multi').length;
+  }
+
+  function setCategory(cat) {
+    currentCategory = cat;
+    tabSp.classList.toggle('active', cat === 'single');
+    tabMp.classList.toggle('active', cat === 'multi');
+    mpLobbySection.style.display = (cat === 'multi') ? 'block' : 'none';
+    sectionHeading.textContent = (cat === 'single') ? 'Single Player Games' : 'Multiplayer Games';
+    render();
+  }
+
+  function render() {
+    const s = q.value.trim().toLowerCase();
+    const list = games.filter(g => {
+      const matchCat = g.category === currentCategory;
+      const matchSearch = (g.title + ' ' + g.desc + ' ' + g.tag).toLowerCase().includes(s);
+      return matchCat && matchSearch;
+    });
+
     grid.innerHTML = list.map(g => `
-      <a class="card" href="${g.file}">
+      <div class="card" onclick="handleGameClick('${g.file}', '${g.title.replace(/'/g, "\\'")}', ${!!g.onlineMp})">
         <div class="icon">${g.icon}</div>
         <div class="title">${g.title}</div>
         <div class="desc">${g.desc}</div>
-        <span class="tag ${g.multi ? 'multi' : ''}">${g.tag}</span>
-      </a>`).join('');
+        <span class="tag ${g.onlineMp ? 'online' : (g.category === 'multi' ? 'multi' : '')}">${g.tag}</span>
+      </div>`).join('');
+
     empty.style.display = list.length ? 'none' : 'block';
     count.textContent = list.length + (list.length === 1 ? ' game' : ' games');
   }
 
-  q.addEventListener('input', () => {
-    const s = q.value.trim().toLowerCase();
-    render(games.filter(g => (g.title + ' ' + g.desc + ' ' + g.tag).toLowerCase().includes(s)));
-  });
+  q.addEventListener('input', render);
 
-  render(games);
+  /* =========================================================================
+     MULTIPLAYER LOBBY: HOST & JOIN (Carrying connection to games)
+     ========================================================================= */
+
+  function setLobbyFeedback(msg, isError = false) {
+    lobbyFeedback.textContent = msg;
+    lobbyFeedback.style.color = isError ? 'var(--danger)' : 'var(--gold)';
+  }
+
+  function hostRoom() {
+    if (activePeer) { activePeer.destroy(); }
+    const code = Array.from({length:4}, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
+    roomCode = code;
+    isHost = true;
+    setLobbyFeedback('Creating room…');
+
+    try {
+      activePeer = new Peer('qgam-' + code);
+      activePeer.on('open', () => {
+        showActiveRoomUI();
+        lobbyPill.textContent = 'Hosting';
+        lobbyPill.className = 'status-pill waiting';
+        activeStatusMsg.innerHTML = 'Waiting for your friend to enter code: <b style="color:var(--gold);">' + code + '</b>';
+        setLobbyFeedback('Room open! Share the code or invite link.');
+      });
+
+      activePeer.on('error', e => {
+        if (e.type === 'unavailable-id') { hostRoom(); }
+        else { setLobbyFeedback('Error hosting: ' + e.type, true); }
+      });
+
+      activePeer.on('connection', conn => {
+        activeConn = conn;
+        setupConnection(conn);
+      });
+    } catch(err) {
+      setLobbyFeedback('PeerJS error: ' + err.message, true);
+    }
+  }
+
+  function joinRoom(autoCode) {
+    const input = document.getElementById('join-code');
+    const code = (autoCode || input.value).trim().toUpperCase();
+    if (code.length < 4) {
+      setLobbyFeedback('Please enter the 4-character code.', true);
+      return;
+    }
+    roomCode = code;
+    isHost = false;
+    setLobbyFeedback('Connecting to room ' + code + '…');
+    if (activePeer) { activePeer.destroy(); }
+
+    try {
+      activePeer = new Peer();
+      activePeer.on('open', () => {
+        activeConn = activePeer.connect('qgam-' + code, { reliable: true });
+        setupConnection(activeConn);
+      });
+
+      activePeer.on('error', e => {
+        const msg = e.type === 'peer-unavailable' ? 'Room not found. Check code.' : ('Connection error: ' + e.type);
+        setLobbyFeedback(msg, true);
+      });
+    } catch(err) {
+      setLobbyFeedback('Connection error: ' + err.message, true);
+    }
+  }
+
+  function setupConnection(conn) {
+    conn.on('open', () => {
+      isConnected = true;
+      showActiveRoomUI();
+      lobbyPill.textContent = 'Connected';
+      lobbyPill.className = 'status-pill online';
+      activeStatusMsg.innerHTML = isHost
+        ? '<b>Friend connected!</b> Tap any online game below to launch for both.'
+        : '<b>Connected to Host!</b> Waiting for host to choose a game (or tap below).';
+      setLobbyFeedback('Connected! Connection will be carried directly into any game you select.');
+
+      // Notify host if guest just joined
+      if (!isHost) {
+        conn.send({ __qgam: true, action: 'guest_joined' });
+      }
+    });
+
+    conn.on('data', data => {
+      if (data && data.__qgam) {
+        handleLobbySystemMessage(data);
+      }
+    });
+
+    conn.on('close', () => {
+      isConnected = false;
+      setLobbyFeedback('Friend disconnected.');
+      disconnectRoom();
+    });
+  }
+
+  function handleLobbySystemMessage(data) {
+    if (data.action === 'guest_joined') {
+      activeStatusMsg.innerHTML = '<b>Friend connected!</b> Tap any online game below to launch for both.';
+    } else if (data.action === 'launch') {
+      // Host launched a game! Launch it on guest's screen carrying connection
+      launchGameInFrame(data.file, data.title, false);
+    } else if (data.action === 'exit') {
+      // Exit game back to arcade
+      exitGame(false);
+    }
+  }
+
+  function showActiveRoomUI() {
+    mpSetupControls.style.display = 'none';
+    mpActiveControls.style.display = 'flex';
+    activeCodeDisp.textContent = roomCode;
+  }
+
+  function disconnectRoom() {
+    if (activeConn) {
+      try { activeConn.close(); } catch(e){}
+      activeConn = null;
+    }
+    if (activePeer) {
+      try { activePeer.destroy(); } catch(e){}
+      activePeer = null;
+    }
+    isConnected = false;
+    isHost = false;
+    roomCode = '';
+    window.carriedConnection = null;
+
+    mpSetupControls.style.display = 'grid';
+    mpActiveControls.style.display = 'none';
+    lobbyPill.textContent = 'Offline';
+    lobbyPill.className = 'status-pill';
+    setLobbyFeedback('Disconnected from room.');
+  }
+
+  function copyInviteLink() {
+    const url = window.location.origin + window.location.pathname + '?join=' + roomCode;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => setLobbyFeedback('Invite link copied to clipboard!'));
+    } else {
+      prompt('Copy this link:', url);
+    }
+  }
+
+  /* =========================================================================
+     GAME LAUNCHER: CARRYING CONNECTION INTO SELECTED GAME
+     ========================================================================= */
+
+  function handleGameClick(file, title, isOnlineMp) {
+    if (isOnlineMp && isConnected && activeConn && activeConn.open) {
+      // User is connected in Multiplayer Lobby!
+      // Carry connection into the selected game for BOTH players
+      if (isHost) {
+        activeConn.send({ __qgam: true, action: 'launch', file, title });
+        launchGameInFrame(file, title, true);
+      } else {
+        // Guest tapped: notify host to launch
+        activeConn.send({ __qgam: true, action: 'launch', file, title });
+        launchGameInFrame(file, title, false);
+      }
+    } else if (isOnlineMp && !isConnected) {
+      // In multiplayer tab but not connected yet
+      const wantSolo = confirm(`"${title}" is an Online Multiplayer game.\n\nTo play with a friend, use "Create Room" above.\n\nWould you like to open it directly now in standalone mode?`);
+      if (wantSolo) {
+        launchGameInFrame(file, title, false);
+      }
+    } else {
+      // Single player or local 2-player game
+      launchGameInFrame(file, title, false);
+    }
+  }
+
+  function launchGameInFrame(file, title, isCarrying) {
+    // Expose carried connection object to the game frame
+    if (isConnected && activeConn) {
+      window.carriedConnection = {
+        isHost: isHost,
+        conn: activeConn,
+        peer: activePeer,
+        roomCode: roomCode
+      };
+      overlayRoomTag.style.display = 'inline-flex';
+      overlayRoomNum.textContent = roomCode;
+    } else {
+      window.carriedConnection = null;
+      overlayRoomTag.style.display = 'none';
+    }
+
+    overlayTitle.textContent = title;
+    gameOverlay.classList.add('open');
+    gameFrame.src = file;
+  }
+
+  function exitGame(notifyPeer = true) {
+    if (notifyPeer && isConnected && activeConn && activeConn.open) {
+      activeConn.send({ __qgam: true, action: 'exit' });
+    }
+    gameFrame.src = 'about:blank';
+    gameOverlay.classList.remove('open');
+  }
+
+  function toggleOverlayFS() {
+    if (!document.fullscreenElement) {
+      gameOverlay.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  // Auto-join from URL parameter (e.g. ?join=ABCD)
+  const urlParams = new URLSearchParams(window.location.search);
+  const autoJoin = urlParams.get('join');
+  if (autoJoin) {
+    setCategory('multi');
+    document.getElementById('join-code').value = autoJoin.toUpperCase();
+    setTimeout(() => joinRoom(autoJoin), 400);
+  } else {
+    setCategory('single');
+  }
+
+  initCounts();
+  render();
 </script>
 </body>
 </html>

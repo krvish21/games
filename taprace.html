@@ -101,8 +101,24 @@ function tap(x,y){
   const r=document.createElement('div');r.className='rip';r.style.left=x+'px';r.style.top=y+'px';
   $('tap').appendChild(r);r.onanimationend=()=>r.remove();
 }
-$('tap').addEventListener('pointerdown',e=>{e.preventDefault();const b=$('tap').getBoundingClientRect();tap(e.clientX-b.left,e.clientY-b.top)});
 $('bc').onclick=create;$('bj').onclick=join;$('again').onclick=()=>{ov('');begin(false)};
+function checkCarried(){
+  try{
+    const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
+    if(carried && carried.conn){
+      initAudio();
+      conn = carried.conn;
+      host = !!carried.isHost;
+      link();
+      if(host){
+        setTimeout(()=>begin(false), 800);
+      }
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+checkCarried();
 
 function loop(t){
   const dt=Math.min(.05,(t-last)/1000||0);last=t;

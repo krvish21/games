@@ -475,5 +475,32 @@ function drawPlay(){
     <div>★ safe tile (no captures) · rare stones are single-use: land exactly on one to claim it, and it replenishes on the track once spent · the center 🔒 unlocks when the first stone is claimed or stolen · then hold a stone and finish a lap to Snap · capture a rival to steal their stone</div>
   </details>`;
 }
-lobby();
+function checkCarried(){
+  try{
+    const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
+    if(carried && carried.conn){
+      conn = carried.conn;
+      if(carried.isHost){
+        me = 0;
+        conn.on('data', d => {
+          if(!G) return;
+          if(d.t==='pick') pickSq(1, d.ids);
+          else if(d.t==='roll') rollDice(1);
+          else if(d.t==='reroll') reroll(1);
+          else if(d.t==='move') move(1, d.ti);
+        });
+        conn.on('close', () => { msg='Opponent left'; G=null; lobby(); });
+        startGame();
+      }else{
+        me = 1;
+        app.innerHTML='<h1>Connecting to game…</h1>';
+        conn.on('data', d => { if(d.t==='s'){ G=d.g; draw(); } });
+        conn.on('close', () => { msg='Host left'; G=null; lobby(); });
+      }
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+if(!checkCarried()) lobby();
 </script></body></html>
