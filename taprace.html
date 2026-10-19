@@ -78,6 +78,7 @@ function link(){
 }
 function onData(d){
   if(d.t==='go')begin(true);
+  else if(d.t==='ready'&&host)begin(false);
   else if(d.t==='s'){op.p=d.p;op.s=d.s}
   else if(d.t==='fin'&&state==='race')finish(false);
 }
@@ -101,6 +102,7 @@ function tap(x,y){
   const r=document.createElement('div');r.className='rip';r.style.left=x+'px';r.style.top=y+'px';
   $('tap').appendChild(r);r.onanimationend=()=>r.remove();
 }
+$('tap').addEventListener('pointerdown',e=>{e.preventDefault();const b=$('tap').getBoundingClientRect();tap(e.clientX-b.left,e.clientY-b.top)});
 $('bc').onclick=create;$('bj').onclick=join;$('again').onclick=()=>{ov('');begin(false)};
 function checkCarried(){
   try{
@@ -112,6 +114,8 @@ function checkCarried(){
       link();
       if(host){
         setTimeout(()=>begin(false), 800);
+      }else{
+        conn.send({t:'ready'});
       }
       return true;
     }

@@ -106,12 +106,14 @@ function join(){const code=$('inp').value.trim().toUpperCase();if(code.length<4)
 const p=new Peer();p.on('open',()=>{$('info').textContent='Connecting…';const c=p.connect('tkdl-'+code);setup(c);c.on('open',()=>{mode='net';me=1;$('info').textContent='Connected. Starting…'})});
 p.on('error',e=>$('info').textContent=e.type=='peer-unavailable'?'No room with that code.':'Connection error ('+e.type+').')}
 function onMsg(m){
-if(m.t=='s'){mode='net';me=1;start(m.seed,m.wind)}
+if(m.t=='ready'&&mode=='net'&&me===0&&lastSeed){conn.send({t:'s',seed:lastSeed.sd,wind:lastSeed.w})}
+else if(m.t=='s'){mode='net';me=1;start(m.seed,m.wind)}
 else if(!S)return;
 else if(m.t=='m')S.x[1-me]=m.x;
 else if(m.t=='f'){S.x[S.turn]=m.x;if(m.ty)S.it[S.turn]=null;fire(S.turn,m.th,m.p,m.ty)}
 else if(m.t=='e'){pend=m.S;if(st!='fly')applyEnd()}}
 $('bai').addEventListener('click',()=>{AC();land();playAI()});$('bho').addEventListener('click',()=>{AC();land();host()});$('bjo').addEventListener('click',()=>{AC();land();join()});$('bag').addEventListener('click',()=>again());
+let lastSeed=null;
 function checkCarried(){
   try{
     const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
@@ -121,12 +123,18 @@ function checkCarried(){
       if(carried.isHost){
         me = 0;
         setup(carried.conn);
-        const n = newSeed();
-        carried.conn.send({t:'s',seed:n.sd,wind:n.w});
-        start(n.sd,n.w);
+        lastSeed = newSeed();
+        carried.conn.send({t:'s',seed:lastSeed.sd,wind:lastSeed.w});
+        start(lastSeed.sd,lastSeed.w);
       }else{
         me = 1;
         setup(carried.conn);
+        $('info').textContent = 'Connected. Starting…';
+        $('bai').style.display = 'none';
+        $('bho').style.display = 'none';
+        $('bjo').style.display = 'none';
+        $('inp').style.display = 'none';
+        carried.conn.send({t:'ready'});
       }
       return true;
     }

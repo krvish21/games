@@ -630,6 +630,7 @@ function Views_canvas() { return View.canvas; }
 const Net = {
   peer: null, conn: null,
 
+  setConn(c) { this.bind(c); },
   send(msg) { if (this.conn && this.conn.open) this.conn.send(msg); },
 
   reset() {
@@ -685,6 +686,10 @@ const Net = {
 function onNetMessage(m) {
   if (!m || typeof m !== 'object') return;
   if (isHost) {
+    if (m.t === 'ready') {
+      Net.send({ t: 'start', s: scores });
+      return;
+    }
     if (m.t === 'in' && allFinite([m.a, m.p, m.m])) {
       remoteInput.a = clamp(m.a, -CFG.AIM_LIMIT, CFG.AIM_LIMIT);
       remoteInput.p = clamp(m.p, -0.25, 0.6);
@@ -822,16 +827,18 @@ function checkCarried(){
     const carried = (window.parent && window.parent !== window && window.parent.carriedConnection) || null;
     if(carried && carried.conn){
       isHost = !!carried.isHost;
-      Net.setConn(carried.conn);
-      setNetLabel(true);
-      startMatch();
+      Net.bind(carried.conn);
+      if(!isHost){
+        Net.send({ t: 'ready' });
+      }
       return true;
     }
   }catch(e){}
   return false;
 }
-checkCarried();
-setNetLabel(false);
+if(!checkCarried()){
+  setNetLabel(false);
+}
 requestAnimationFrame(loop);
 </script>
 </body>

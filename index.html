@@ -575,6 +575,22 @@
     }
   }
 
+  function lobbyDataHandler(data) {
+    if (data && data.__qgam) {
+      handleLobbySystemMessage(data);
+    }
+  }
+
+  function cleanChildListeners() {
+    if (!activeConn) return;
+    try {
+      if (typeof activeConn.removeAllListeners === 'function') {
+        activeConn.removeAllListeners('data');
+        activeConn.on('data', lobbyDataHandler);
+      }
+    } catch(e) {}
+  }
+
   function setupConnection(conn) {
     conn.on('open', () => {
       isConnected = true;
@@ -592,11 +608,7 @@
       }
     });
 
-    conn.on('data', data => {
-      if (data && data.__qgam) {
-        handleLobbySystemMessage(data);
-      }
-    });
+    conn.on('data', lobbyDataHandler);
 
     conn.on('close', () => {
       isConnected = false;
@@ -682,6 +694,7 @@
   }
 
   function launchGameInFrame(file, title, isCarrying) {
+    cleanChildListeners();
     // Expose carried connection object to the game frame
     if (isConnected && activeConn) {
       window.carriedConnection = {
@@ -708,6 +721,7 @@
     }
     gameFrame.src = 'about:blank';
     gameOverlay.classList.remove('open');
+    cleanChildListeners();
   }
 
   function toggleOverlayFS() {

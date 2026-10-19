@@ -129,10 +129,11 @@ function checkCarried(){
       conn = carried.conn;
       if(carried.isHost){
         startMode('host');
-        conn.on('data',d=>{if(d.i)inp1=d.i;if(d.r&&S&&S.over>=0)newGame()});
+        conn.on('data',d=>{if(d.i)inp1=d.i;if(d.r&&S&&S.over>=0)newGame();if(d.ready&&S)conn.send(pack())});
       }else{
         startMode('guest');
         conn.on('data',d=>{if(!d.__qgam&&d.p){S=d;playEv(d.ev)}});
+        conn.send({ready:1});
       }
       conn.on('close',()=>{st('Friend left.');menu()});
       return true;

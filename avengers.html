@@ -488,6 +488,7 @@ function checkCarried(){
           else if(d.t==='roll') rollDice(1);
           else if(d.t==='reroll') reroll(1);
           else if(d.t==='move') move(1, d.ti);
+          else if(d.t==='ready') broadcast();
         });
         conn.on('close', () => { msg='Opponent left'; G=null; lobby(); });
         startGame();
@@ -496,6 +497,7 @@ function checkCarried(){
         app.innerHTML='<h1>Connecting to game…</h1>';
         conn.on('data', d => { if(d.t==='s'){ G=d.g; draw(); } });
         conn.on('close', () => { msg='Host left'; G=null; lobby(); });
+        conn.send({t:'ready'});
       }
       return true;
     }

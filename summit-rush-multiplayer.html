@@ -234,6 +234,7 @@ function joinRoom(c0){
  peer.on('error',e=>{$('err').textContent=e.type==='peer-unavailable'?'No room with that code.':'Connection problem: '+e.type;$('bJoin').disabled=false});
 }
 function onData(c,d){
+ if(d.t==='ready'){bc();return}
  if(d.t==='join'){
   if(phase!=='lobby'||P.length>=4){c.send({t:'full'});return}
   cmap[c.peer]=c;P.push(newP(c.peer,d.name));bc();
@@ -454,8 +455,12 @@ function checkCarried(){
       }else{
         isHost = false;
         me = conn.peer || 'guest';
+        show('lobby');
+        $('wait').classList.remove('hide');
+        $('wait').textContent = 'Connected! Waiting for host to set up board…';
         conn.on('data', d => { if(d.t==='s') apply(d.s); });
         conn.on('close', () => say('Disconnected', 'The host left the game.'));
+        conn.send({t:'ready'});
       }
       return true;
     }
