@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gravity Flip Heist</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:#080b14;color:#fff;font-family:system-ui,sans-serif;overflow:hidden;touch-action:none;user-select:none}
+body{display:flex;flex-direction:column}
+#hud{display:flex;justify-content:space-between;padding:8px 14px;font-weight:700;font-size:15px}
+canvas{flex:1;width:100%;min-height:0;display:block}
+#bar{display:flex;gap:10px;padding:8px 8px 12px;justify-content:center}
+button{border:2px solid #345;background:#16213a;color:#fff;border-radius:12px;padding:10px 18px;font-size:15px}
+#msg{position:fixed;inset:0;background:#080b14ee;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
+#msg button{font-size:18px;padding:12px 28px;background:#1f7a3d}
+</style></head><body>
+<div id="hud"><span id="lv"></span><span id="fl"></span><span id="pr"></span></div>
+<canvas id="c"></canvas>
+<div id="bar"><button onclick="undo()">Undo ↶</button><button onclick="restart()">Restart ↺</button></div>
+<div id="msg"><h1>Gravity Flip Heist 💎</h1><div>Tap where you want to fall: up, down, left or right. You slide until you hit a wall. Grab every 💎, then reach the 🚪. Avoid red ▲ spikes and lasers: magenta lasers are on now, cyan ones after every move. Fewer flips = more stars.</div><button onclick="hideMsg()">Start</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const Wc=9,Hc=13,D=[[0,-1],[0,1],[-1,0],[1,0]];
+let W,H,c,ox,oy,L,level=1,S,hist=[],flips=0,par=0,anim=null,deathT=0,over=false,last=0;
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function slide(L,s,d){const[dx,dy]=D[d];let x=s.x,y=s.y,m=s.m,path=[],dead=false,won=false;
+ for(;;){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=Wc||ny>=Hc||L.g[ny][nx]=='#')break;
+  x=nx;y=ny;const t=L.g[y][x],gi=L.gi[y*Wc+x];if(gi!==undefined)m|=1<<gi;path.push({x,y,m});
+  if(t=='^'||(t=='a'&&s.p==0)||(t=='b'&&s.p==1)){dead=true;break}
+  if(x==L.ex&&y==L.ey&&m==L.full){won=true;break}}
+ return{path,dead,won,ns:{x,y,m,p:path.length?1-s.p:s.p}}}
+function solve(L){const k=s=>((s.y*Wc+s.x)*16+s.m)*2+s.p;const s0={x:L.sx,y:L.sy,m:0,p:0};
+ const seen=new Set([k(s0)]);let q=[s0],dist=0;
+ while(q.length){dist++;const nq=[];for(const s of q)for(let d=0;d<4;d++){const r=slide(L,s,d);if(r.dead||!r.path.length)continue;
+  if(r.won)return dist;const kk=k(r.ns);if(!seen.has(kk)){seen.add(kk);nq.push(r.ns)}}q=nq}
+ return 0}
+function gen(lv){const R=rng(lv*7919+13);let best=null;
+ for(let att=0;att<700;att++){
+  const g=Array.from({length:Hc},()=>Array(Wc).fill('.'));
+  const cells=[];for(let y=0;y<Hc;y++)for(let x=0;x<Wc;x++)cells.push([x,y]);
+  for(let i=cells.length-1;i>0;i--){const j=R()*(i+1)|0;[cells[i],cells[j]]=[cells[j],cells[i]]}
+  let p=0;const nw=18+Math.min(lv,10);for(let i=0;i<nw;i++){const[x,y]=cells[p++];g[y][x]='#'}
+  const[sx,sy]=cells[p++],[ex,ey]=cells[p++];
+  const ng=Math.min(1+(lv/3|0),4),gi={};for(let i=0;i<ng;i++){const[x,y]=cells[p++];gi[y*Wc+x]=i}
+  const ns=Math.min(2+(lv/2|0),7);for(let i=0;i<ns;i++){const[x,y]=cells[p++];g[y][x]='^'}
+  const nl=Math.min(lv/2|0,6);for(let i=0;i<nl;i++){const[x,y]=cells[p++];g[y][x]=i%2?'a':'b'}
+  for(const k in gi){const x=k%Wc,y=k/Wc|0;if(g[y][x]!='.')g[y][x]='.'}
+  g[sy][sx]='.';g[ey][ex]='.';
+  const T={g,sx,sy,ex,ey,gi,full:(1<<ng)-1,ng};const lo=Math.min(3+(lv>>1),10)-(att>250)-(att>450);
+  const pr=solve(T);if(!pr)continue;T.par=pr;best=T;if(pr>=lo&&pr<=lo+5)return T}
+ return best}
+function load(){L=gen(level);S={x:L.sx,y:L.sy,m:0,p:0};hist=[];flips=0;par=L.par;anim=null;over=false;ui()}
+function ui(){document.getElementById('lv').textContent='Level '+level;document.getElementById('fl').textContent='Flips '+flips;
+ let b='';try{b=localStorage.getItem('gh_'+level)}catch(e){}document.getElementById('pr').textContent='Par '+par+(b?' · Best '+b:'')}
+function resize(){W=cv.width=cv.clientWidth;H=cv.height=cv.clientHeight;c=Math.floor(Math.min(W/Wc,H/Hc));ox=(W-c*Wc)/2;oy=(H-c*Hc)/2}
+addEventListener('resize',resize);
+cv.addEventListener('pointerdown',e=>{if(anim||over||deathT>0)return;const r=cv.getBoundingClientRect();
+ const px=ox+(S.x+.5)*c,py=oy+(S.y+.5)*c,dx=e.clientX-r.left-px,dy=e.clientY-r.top-py;
+ const d=Math.abs(dx)>Math.abs(dy)?(dx<0?2:3):(dy<0?0:1);move(d)});
+function move(d){const r=slide(L,S,d);if(!r.path.length)return;hist.push({...S,f:flips});
+ anim={r,k:0,from:{x:S.x,y:S.y},m:S.m};if(navigator.vibrate)navigator.vibrate(8)}
+function undo(){if(anim||over||!hist.length)return;const h=hist.pop();S={x:h.x,y:h.y,m:h.m,p:h.p};flips=h.f;ui()}
+function restart(){if(anim)return;S={x:L.sx,y:L.sy,m:0,p:0};hist=[];flips=0;over=false;ui()}
+function finish(){const r=anim.r;anim=null;
+ if(r.dead){const h=hist.pop();S={x:h.x,y:h.y,m:h.m,p:h.p};deathT=.5;if(navigator.vibrate)navigator.vibrate(60);return}
+ S=r.ns;flips++;ui();
+ if(r.won){over=true;const st=flips<=par?3:flips<=par+2?2:1;
+  try{const k='gh_'+level,b=+localStorage.getItem(k);if(!b||flips<b)localStorage.setItem(k,flips)}catch(e){}
+  const m=document.getElementById('msg');m.innerHTML=`<h1>Heist complete! ${'⭐'.repeat(st)}</h1><div>${flips} flips (par ${par})</div><button onclick="next()">Next vault</button><button onclick="hideMsg();restart()" style="background:#16213a">Replay</button>`;m.style.display='flex'}}
+function next(){level++;hideMsg();load()}
+function hideMsg(){document.getElementById('msg').style.display='none'}
+function draw(dt){
+ ctx.fillStyle='#080b14';ctx.fillRect(0,0,W,H);
+ let m=S.m,px=S.x,py=S.y,p=S.p;
+ if(anim){const r=anim.r;anim.k+=dt*16;const i=Math.floor(anim.k);
+  if(i>=r.path.length){px=r.path[r.path.length-1].x;py=r.path[r.path.length-1].y;m=r.path[r.path.length-1].m;finish();if(!anim&&deathT>0){px=S.x;py=S.y;m=S.m}}
+  else{const pr=i?r.path[i-1]:anim.from,cu=r.path[i],f=anim.k-i;px=pr.x+(cu.x-pr.x)*f;py=pr.y+(cu.y-pr.y)*f;m=i?r.path[i-1].m:anim.m;if(f>.5)m=cu.m}}
+ const ph=anim?anim.r.ns.p===undefined?p:S.p:S.p;
+ for(let y=0;y<Hc;y++)for(let x=0;x<Wc;x++){const X=ox+x*c,Y=oy+y*c,t=L.g[y][x];
+  ctx.fillStyle='#0f1526';ctx.fillRect(X+1,Y+1,c-2,c-2);
+  if(t=='#'){ctx.fillStyle='#3b4a6b';ctx.fillRect(X+1,Y+1,c-2,c-2);ctx.fillStyle='#56688f';ctx.fillRect(X+1,Y+1,c-2,5)}
+  else if(t=='^'){ctx.fillStyle='#e5484d';ctx.beginPath();ctx.moveTo(X+c*.15,Y+c*.85);ctx.lineTo(X+c*.5,Y+c*.15);ctx.lineTo(X+c*.85,Y+c*.85);ctx.fill()}
+  else if(t=='a'||t=='b'){const on=(t=='a'?ph==0:ph==1),col=t=='a'?'#ff3df0':'#27e0ff';
+   ctx.globalAlpha=on?1:.22;ctx.strokeStyle=col;ctx.lineWidth=on?4:2;ctx.shadowColor=col;ctx.shadowBlur=on?12:0;
+   ctx.beginPath();ctx.moveTo(X+4,Y+c/2);ctx.lineTo(X+c-4,Y+c/2);ctx.moveTo(X+c/2,Y+4);ctx.lineTo(X+c/2,Y+c-4);ctx.stroke();ctx.shadowBlur=0;ctx.globalAlpha=1}
+  const gi=L.gi[y*Wc+x];ctx.font=c*.6+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  if(gi!==undefined&&!(m>>gi&1))ctx.fillText('💎',X+c/2,Y+c/2+2);
+  if(x==L.ex&&y==L.ey){ctx.globalAlpha=m==L.full?1:.4;ctx.fillText('🚪',X+c/2,Y+c/2+2);ctx.globalAlpha=1}}
+ const X=ox+px*c,Y=oy+py*c;
+ ctx.fillStyle=deathT>0?'#e5484d':'#ffd25a';ctx.shadowColor='#ffd25a';ctx.shadowBlur=14;
+ ctx.fillRect(X+c*.15,Y+c*.15,c*.7,c*.7);ctx.shadowBlur=0;ctx.fillStyle='#111';
+ ctx.fillRect(X+c*.28,Y+c*.34,c*.12,c*.16);ctx.fillRect(X+c*.6,Y+c*.34,c*.12,c*.16)}
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(deathT>0)deathT-=dt;draw(dt);requestAnimationFrame(loop)}
+resize();load();requestAnimationFrame(t=>{last=t;loop(t)});
+</script></body></html>
