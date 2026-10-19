@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Arrow Duel</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color: #fff;
+    font-family: system-ui, sans-serif; touch-action: none; user-select: none;
+    -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+  canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #score { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 28px;
+    font-weight: 700; text-shadow: 0 2px 6px #000; }
+  #net { position: absolute; top: 12px; left: 12px; font-size: 12px; opacity: .85; }
+  #cross { position: absolute; top: 50%; left: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+    border: 2px solid #fff; border-radius: 50%; opacity: .8; }
+  #cross::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px;
+    margin: -2px; background: #fff; border-radius: 50%; }
+  #bar { position: absolute; bottom: 130px; left: 50%; width: 160px; height: 10px; margin-left: -80px;
+    background: #0006; border-radius: 5px; overflow: hidden; }
+  #barFill { height: 100%; background: #ffd54a; transform-origin: left; transform: scaleX(0); }
+  #tag { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); display: none;
+    background: #d33; padding: 4px 12px; border-radius: 6px; font-weight: 700; letter-spacing: 2px; }
+  #banner { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 44px;
+    font-weight: 800; text-shadow: 0 3px 10px #000; pointer-events: none; display: none; }
+  .btn { position: absolute; pointer-events: auto; touch-action: none; display: flex; align-items: center;
+    justify-content: center; background: #ffffff30; border: 2px solid #ffffff80; border-radius: 50%;
+    font-size: 28px; font-weight: 700; backdrop-filter: blur(4px); }
+  #left, #right { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); width: 80px; height: 80px; }
+  #left { left: calc(20px + env(safe-area-inset-left, 0px)); }
+  #right { left: calc(112px + env(safe-area-inset-left, 0px)); }
+  #fire { bottom: calc(28px + env(safe-area-inset-bottom, 0px)); right: calc(24px + env(safe-area-inset-right, 0px));
+    width: 110px; height: 110px; font-size: 18px; background: #e5393560; }
+  .btn.on { background: #ffffff70; }
+  #menu { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; background: #101a28ee; text-align: center; padding: 20px; }
+  #menu h1 { margin: 0 0 6px; font-size: 38px; }
+  #menu button, #menu input { font-size: 20px; padding: 12px 22px; border-radius: 10px; border: 0; }
+  #menu button { background: #e53935; color: #fff; font-weight: 700; }
+  #menu input { width: 110px; text-align: center; text-transform: uppercase; user-select: text; -webkit-user-select: text; }
+  #menu .row { display: flex; gap: 10px; }
