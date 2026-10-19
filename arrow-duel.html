@@ -40,3 +40,785 @@
   #menu button { background: #e53935; color: #fff; font-weight: 700; }
   #menu input { width: 110px; text-align: center; text-transform: uppercase; user-select: text; -webkit-user-select: text; }
   #menu .row { display: flex; gap: 10px; }
+  #status { min-height: 48px; white-space: pre-line; color: #ffd54a; }
+  #help { font-size: 13px; opacity: .7; max-width: 300px; }
+  #menu select { font-size: 20px; padding: 12px 10px; border-radius: 10px; border: 0; }
+  #quit { top: calc(10px + env(safe-area-inset-top, 0px)); right: 12px; width: 44px; height: 44px; font-size: 20px; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="net">&#9679; offline</div>
+  <div id="score">0 : 0</div>
+  <div id="tag">REPLAY</div>
+  <div id="cross"></div>
+  <div id="bar"><div id="barFill"></div></div>
+  <div id="left" class="btn">&#9664;</div>
+  <div id="right" class="btn">&#9654;</div>
+  <div id="fire" class="btn">DRAW<br>&amp; FIRE</div>
+  <div id="quit" class="btn">&#10005;</div>
+</div>
+<div id="banner"></div>
+
+<div id="menu">
+  <h1>&#127993; Arrow Duel</h1>
+  <div class="row">
+    <button id="soloBtn">Solo vs AI</button>
+    <select id="aiLevel"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select>
+  </div>
+  <div>or play a friend</div>
+  <button id="hostBtn">Host game</button>
+  <div>or join one</div>
+  <div class="row"><input id="codeIn" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off">
+    <button id="joinBtn">Join</button></div>
+  <div id="status"></div>
+  <div id="help">Drag to aim. Hold FIRE to draw the bow, release to shoot. Use &#9664; &#9654; to dodge. First to 5 wins.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+'use strict';
+
+/* =====================================================================
+   CONFIG + SMALL HELPERS
+   ===================================================================== */
+const CFG = {
+  HALF_X: 8, HALF_Z: 15, EYE: 1.6,
+  HIT_RADIUS: 0.55, HIT_HEIGHT: 1.9,
+  STRAFE_SPEED: 6,
+  DRAW_TIME: 0.8, MIN_DRAW: 0.15, COOLDOWN: 0.5,
+  MIN_SPEED: 18, MAX_SPEED: 45, GRAVITY: 9.8, ARROW_LIFE: 4,
+  WIN_SCORE: 5,
+  INPUT_HZ: 30, SNAPSHOT_HZ: 20,
+  REPLAY_SECONDS: 3, REPLAY_SPEED: 0.6,
+  AIM_SENSITIVITY: 0.004, AIM_LIMIT: 0.8, DEFAULT_PITCH: 0.05
+};
+const PEER_PREFIX = 'arrowduel-';
+// Player 0 = host (z = -15, looks toward +z). Player 1 = guest (z = +15, looks toward -z).
+const BASE_YAW = [0, Math.PI];
+const FACING = [1, -1];
+const START_Z = [-CFG.HALF_Z, CFG.HALF_Z];
+
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const round2 = v => Math.round(v * 100) / 100;
+const allFinite = arr => Array.isArray(arr) && arr.every(Number.isFinite);
+
+/* =====================================================================
+   GAME STATE (shared by host and guest; host also runs the simulation)
+   ===================================================================== */
+let isHost = false;
+let me = 0;                         // my player index
+let phase = 'menu';                 // 'menu' | 'play' | 'replay'
+let players = [];                   // {x, z, a, p, draw, alive, tx, ta, tp}
+const arrows = new Map();           // id -> {id, owner, x,y,z, vx,vy,vz, age}
+let nextArrowId = 1;
+let scores = [0, 0];
+let history = [];                   // recent frames, used for the replay
+let replay = null;
+let roundTimer = null;
+let soloMode = false;               // true = player 1 is controlled by the AI
+
+// a = aim yaw offset from base direction, p = pitch, m = strafe (-1,0,1), d = drawing bow
+const localInput = { a: 0, p: CFG.DEFAULT_PITCH, m: 0, d: false };
+const remoteInput = { a: 0, p: CFG.DEFAULT_PITCH, m: 0, d: false }; // host only
+const sim = [{ drawTime: 0, cooldown: 0 }, { drawTime: 0, cooldown: 0 }]; // host only
+
+/** Unit direction vector for player i aiming with offsets (a, p). */
+function aimDir(i, a, p) {
+  const yaw = BASE_YAW[i] + a;
+  return [Math.sin(yaw) * Math.cos(p), Math.sin(p), Math.cos(yaw) * Math.cos(p)];
+}
+
+function resetRound() {
+  players = [0, 1].map(i => ({ x: 0, z: START_Z[i], a: 0, p: CFG.DEFAULT_PITCH, draw: 0,
+                               alive: true, tx: 0, ta: 0, tp: CFG.DEFAULT_PITCH }));
+  arrows.clear();
+  history = [];
+  replay = null;
+  sim.forEach(s => { s.drawTime = 0; s.cooldown = 0; });
+  Object.assign(localInput, { a: 0, p: CFG.DEFAULT_PITCH, m: 0, d: false });
+  Object.assign(remoteInput, { a: 0, p: CFG.DEFAULT_PITCH, m: 0, d: false });
+  cooldownUntil = 0;
+  if (soloMode) AI.reset();
+  $('tag').style.display = 'none';
+  phase = 'play';
+  updateScore();
+  banner('FIGHT!', 900);
+}
+
+/* =====================================================================
+   HOST SIMULATION
+   ===================================================================== */
+function simStep(dt) {
+  const inputs = [localInput, remoteInput];
+  players.forEach((pl, i) => {
+    if (!pl.alive) return;
+    const inp = inputs[i], s = sim[i];
+    pl.x = clamp(pl.x - FACING[i] * inp.m * CFG.STRAFE_SPEED * dt, -CFG.HALF_X, CFG.HALF_X);
+    pl.a = inp.a;
+    pl.p = inp.p;
+    s.cooldown = Math.max(0, s.cooldown - dt);
+
+    if (inp.d && s.cooldown <= 0) {
+      s.drawTime += dt;                                   // drawing the bow
+    } else if (!inp.d && s.drawTime > 0) {                // released -> fire
+      if (s.drawTime >= CFG.MIN_DRAW) {
+        fireArrow(i, Math.min(1, s.drawTime / CFG.DRAW_TIME));
+        s.cooldown = CFG.COOLDOWN;
+      }
+      s.drawTime = 0;
+    }
+    pl.draw = Math.min(1, s.drawTime / CFG.DRAW_TIME);
+  });
+}
+
+function fireArrow(i, power) {
+  const pl = players[i];
+  const d = aimDir(i, pl.a, pl.p);
+  const speed = lerp(CFG.MIN_SPEED, CFG.MAX_SPEED, power);
+  const id = nextArrowId++;
+  arrows.set(id, { id, owner: i, age: 0,
+    x: pl.x + d[0] * 0.8, y: CFG.EYE - 0.1 + d[1] * 0.8, z: pl.z + d[2] * 0.8,
+    vx: d[0] * speed, vy: d[1] * speed, vz: d[2] * speed });
+}
+
+/** Moves arrows. Only the host checks hits; the guest just keeps them flying between snapshots. */
+function stepArrows(dt, checkHits) {
+  const SUB = 3, h = dt / SUB;   // sub-steps so fast arrows can't tunnel through a player
+  for (const [id, ar] of arrows) {
+    let remove = false;
+    for (let k = 0; k < SUB && !remove; k++) {
+      ar.vy -= CFG.GRAVITY * h;
+      ar.x += ar.vx * h; ar.y += ar.vy * h; ar.z += ar.vz * h;
+      if (checkHits && phase === 'play') {
+        const victim = 1 - ar.owner, pl = players[victim];
+        if (pl.alive && ar.y > 0 && ar.y < CFG.HIT_HEIGHT &&
+            Math.hypot(ar.x - pl.x, ar.z - pl.z) < CFG.HIT_RADIUS) {
+          remove = true;
+          registerHit(victim, ar.owner);
+        }
+      }
+      if (ar.y <= 0) remove = true;      // hit the ground
+    }
+    ar.age += dt;
+    if (remove || ar.age > CFG.ARROW_LIFE) arrows.delete(id);
+  }
+}
+
+function registerHit(victim, shooter) {
+  players[victim].alive = false;
+  scores[shooter]++;
+  const over = scores[shooter] >= CFG.WIN_SCORE;
+  Net.send({ t: 'hit', v: victim, s: scores, over });
+  beginReplay(victim, over);
+  // Host decides when the next round starts.
+  const wait = CFG.REPLAY_SECONDS / CFG.REPLAY_SPEED * 1000 + 1500;
+  clearTimeout(roundTimer);
+  roundTimer = setTimeout(() => {
+    if (over) scores = [0, 0];
+    Net.send({ t: 'start', s: scores });
+    resetRound();
+  }, wait);
+}
+
+/* =====================================================================
+   SOLO AI - plays as player 1 by writing into remoteInput, exactly like a
+   remote player would. The host simulation does not know the difference.
+   ===================================================================== */
+const AI = (() => {
+  // err: aim error (rad) | react: dodge reaction (s) | dodge: chance to dodge an arrow
+  // lead: how well it predicts your movement (0..1) | gap: seconds between shots | turn: aim speed (rad/s)
+  const LEVELS = {
+    easy:   { err: 0.09,  react: 0.45, dodge: 0.25, lead: 0.3, gap: [2.5, 4.0], turn: 1.6 },
+    normal: { err: 0.045, react: 0.25, dodge: 0.5,  lead: 0.7, gap: [1.6, 2.8], turn: 2.6 },
+    hard:   { err: 0.02,  react: 0.13, dodge: 0.75, lead: 1.0, gap: [1.0, 1.8], turn: 4.0 }
+  };
+  const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+  let level = LEVELS.normal;
+  let st = null;
+
+  function setLevel(name) { level = LEVELS[name] || LEVELS.normal; }
+
+  function reset() {
+    st = { fireTimer: rand(1, 2), drawing: false, drawLeft: 0, noiseA: 0, noiseP: 0,
+           prevX: 0, foeVx: 0, wdir: 0, wanderTimer: 0, seen: new Map() };
+  }
+
+  /** Pitch needed to hit a target `h` metres above the eye at horizontal distance D (iterative ballistic solve). */
+  function solvePitch(D, h, speed) {
+    let th = 0;
+    for (let k = 0; k < 4; k++) {
+      const c = Math.cos(th);
+      th = Math.atan((h + CFG.GRAVITY * D * D / (2 * speed * speed * c * c)) / D);
+    }
+    return th;
+  }
+
+  /** Looks at incoming arrows; returns -1/+1 (world x direction to dodge) or 0 if no threat. */
+  function findDodge(ai, dt) {
+    let dir = 0, soonest = Infinity;
+    for (const ar of arrows.values()) {
+      if (ar.owner !== 0 || ar.vz <= 0) continue;           // only arrows flying toward the AI
+      const t = (ai.z - ar.z) / ar.vz;                      // time until the arrow reaches the AI's line
+      if (t <= 0.05 || t > 1.5) continue;
+      let info = st.seen.get(ar.id);
+      if (!info) { info = { age: 0, willDodge: Math.random() < level.dodge }; st.seen.set(ar.id, info); }
+      info.age += dt;
+      if (!info.willDodge || info.age < level.react) continue;   // not noticed yet, or too slow
+      const hitX = ar.x + ar.vx * t;
+      const hitY = ar.y + ar.vy * t - 0.5 * CFG.GRAVITY * t * t;
+      const off = hitX - ai.x;
+      if (hitY < 0 || hitY > CFG.HIT_HEIGHT + 0.3 || Math.abs(off) > CFG.HIT_RADIUS + 0.9) continue;
+      if (t < soonest) {
+        soonest = t;
+        dir = Math.abs(off) < 0.05 ? (ai.x > 0 ? -1 : 1) : (off > 0 ? -1 : 1);
+      }
+    }
+    return dir;
+  }
+
+  function update(dt) {
+    if (!st || dt < 1e-4) return;
+    const ai = players[1], foe = players[0], inp = remoteInput;
+    if (!ai.alive || !foe.alive) { inp.d = false; inp.m = 0; return; }
+
+    // 1. Estimate the player's strafing speed so we can lead the shot.
+    st.foeVx = lerp(st.foeVx, (foe.x - st.prevX) / dt, Math.min(1, dt * 8));
+    st.prevX = foe.x;
+
+    // 2. Work out the ideal aim (full-power shot), then turn toward it at a limited speed.
+    const speed = CFG.MAX_SPEED;
+    const dz = foe.z - ai.z;
+    const flight = Math.abs(dz) / speed;
+    const dx = foe.x + st.foeVx * flight * level.lead - ai.x;
+    let wantA = Math.atan2(dx, dz) - BASE_YAW[1];
+    wantA = Math.atan2(Math.sin(wantA), Math.cos(wantA));          // wrap to -PI..PI
+    const wantP = solvePitch(Math.hypot(dx, dz), 1.2 - CFG.EYE, speed);
+    const step = level.turn * dt;
+    inp.a = clamp(inp.a + clamp(wantA + st.noiseA - inp.a, -step, step), -CFG.AIM_LIMIT, CFG.AIM_LIMIT);
+    inp.p = clamp(inp.p + clamp(wantP + st.noiseP - inp.p, -step, step), -0.25, 0.6);
+
+    // 3. Shooting: wait, draw the bow fully, release. A fresh aim error is picked for every shot.
+    if (st.drawing) {
+      st.drawLeft -= dt;
+      if (st.drawLeft <= 0) { inp.d = false; st.drawing = false; st.fireTimer = rand(level.gap[0], level.gap[1]); }
+    } else {
+      st.fireTimer -= dt;
+      if (st.fireTimer <= 0) {
+        inp.d = true; st.drawing = true; st.drawLeft = CFG.DRAW_TIME + 0.05;
+        st.noiseA = rand(-level.err, level.err);
+        st.noiseP = rand(-level.err, level.err) * 0.5;
+      }
+    }
+
+    // 4. Movement: dodge incoming arrows, otherwise wander randomly so it is not an easy target.
+    const dodge = findDodge(ai, dt);
+    if (dodge) { st.wdir = dodge; st.wanderTimer = 0.3; }
+    else {
+      st.wanderTimer -= dt;
+      if (st.wanderTimer <= 0) { st.wdir = Math.floor(Math.random() * 3) - 1; st.wanderTimer = rand(0.4, 1.2); }
+    }
+    if (ai.x >= CFG.HALF_X - 0.5 && st.wdir > 0) st.wdir = -1;      // turn around at the walls
+    if (ai.x <= -CFG.HALF_X + 0.5 && st.wdir < 0) st.wdir = 1;
+    inp.m = st.wdir;    // the AI faces -z, so screen-right equals world +x and m maps straight to world x
+  }
+
+  return { setLevel, reset, update };
+})();
+
+/* =====================================================================
+   GUEST SIDE: smoothing + snapshot handling
+   ===================================================================== */
+function guestStep(dt) {
+  const k = 1 - Math.exp(-14 * dt);
+  players.forEach((pl, i) => {
+    if (i === me) {   // predict my own strafing, gently pull toward the host's value
+      pl.x = clamp(pl.x - FACING[i] * localInput.m * CFG.STRAFE_SPEED * dt, -CFG.HALF_X, CFG.HALF_X);
+      pl.x += (pl.tx - pl.x) * Math.min(1, dt * 5);
+      pl.a = localInput.a; pl.p = localInput.p;
+    } else {
+      pl.x += (pl.tx - pl.x) * k;
+      pl.a += (pl.ta - pl.a) * k;
+      pl.p += (pl.tp - pl.p) * k;
+    }
+  });
+}
+
+function applySnapshot(m) {
+  m.p.forEach((q, i) => {
+    const pl = players[i];
+    pl.tx = q[0]; pl.ta = q[1]; pl.tp = q[2]; pl.draw = q[3]; pl.alive = q[4] === 1;
+  });
+  const seen = new Set();
+  for (const r of m.r) {
+    seen.add(r[0]);
+    arrows.set(r[0], { id: r[0], owner: 0, age: 0, x: r[1], y: r[2], z: r[3], vx: r[4], vy: r[5], vz: r[6] });
+  }
+  for (const id of arrows.keys()) if (!seen.has(id)) arrows.delete(id);
+}
+
+function buildSnapshot() {
+  return { t: 's',
+    p: players.map(p => [round2(p.x), round2(p.a), round2(p.p), round2(p.draw), p.alive ? 1 : 0]),
+    r: [...arrows.values()].map(a => [a.id, round2(a.x), round2(a.y), round2(a.z),
+                                      round2(a.vx), round2(a.vy), round2(a.vz)]) };
+}
+
+/* =====================================================================
+   FRAMES + REPLAY (each client records what it displayed)
+   ===================================================================== */
+function makeFrame() {
+  return { t: performance.now() / 1000,
+    p: players.map(p => [p.x, p.z, p.a, p.alive]),
+    r: [...arrows.values()].map(a => [a.id, a.x, a.y, a.z, a.vx, a.vy, a.vz]) };
+}
+
+function recordFrame(f) {
+  history.push(f);
+  while (history.length && history[0].t < f.t - CFG.REPLAY_SECONDS) history.shift();
+}
+
+function beginReplay(victim, over) {
+  history.push(makeFrame());                       // final frame shows the victim down
+  const frames = history.slice();
+  const start = frames[0].t;
+  const winner = 1 - victim;
+  let msg = victim === me ? 'You were hit!' : 'Nice shot!';
+  if (over) msg = winner === me ? 'YOU WIN! \uD83C\uDFC6' : 'YOU LOSE';
+  replay = { frames, i: 0, t: start, start, end: frames[frames.length - 1].t, msg, done: false };
+  phase = 'replay';
+  updateScore();
+  $('tag').style.display = 'block';
+}
+
+function updateReplay(dt) {
+  const r = replay;
+  r.t = Math.min(r.end, r.t + dt * CFG.REPLAY_SPEED);
+  while (r.i < r.frames.length - 1 && r.frames[r.i + 1].t <= r.t) r.i++;
+  if (r.t >= r.end && !r.done) { r.done = true; $('tag').style.display = 'none'; banner(r.msg, 0); }
+  View.render(r.frames[r.i], 'replay', r.t - r.start);
+}
+
+/* =====================================================================
+   VIEW (Three.js)
+   ===================================================================== */
+const View = (() => {
+  let renderer, scene, camera;
+  const playerMeshes = [];
+  const arrowMeshes = new Map();
+  let arrowGeo, arrowMat, tipMat, stamp = 0;
+
+  function init() {
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.prepend(renderer.domElement);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x9fd3f2);
+    scene.fog = new THREE.Fog(0x9fd3f2, 35, 100);
+    camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x556655, 0.9));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+    sun.position.set(10, 20, 5);
+    scene.add(sun);
+
+    buildWorld();
+    [0x3a7bd5, 0xd64545].forEach(c => { const m = makePlayerMesh(c); playerMeshes.push(m); scene.add(m); });
+
+    arrowGeo = [
+      new THREE.CylinderGeometry(0.02, 0.02, 1.2, 5).rotateX(Math.PI / 2),
+      new THREE.ConeGeometry(0.06, 0.25, 5).rotateX(Math.PI / 2).translate(0, 0, 0.7)
+    ];
+    arrowMat = new THREE.MeshLambertMaterial({ color: 0xf5deb3 });
+    tipMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+    resize();
+    window.addEventListener('resize', resize);
+  }
+
+  function resize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+
+  function buildWorld() {
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300),
+      new THREE.MeshLambertMaterial({ color: 0x4f7a3f }));
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+    const arena = new THREE.Mesh(new THREE.PlaneGeometry(CFG.HALF_X * 2 + 2, CFG.HALF_Z * 2 + 4),
+      new THREE.MeshLambertMaterial({ color: 0x7aa35f }));
+    arena.rotation.x = -Math.PI / 2;
+    arena.position.y = 0.01;
+    scene.add(arena);
+
+    // Trees at deterministic positions so both players see the same scenery.
+    let seed = 12345;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2b });
+    const leafMat = new THREE.MeshLambertMaterial({ color: 0x2f6b34 });
+    for (let n = 0; n < 40; n++) {
+      const side = n % 2 ? 1 : -1;
+      const x = side * (12 + rand() * 30), z = (rand() - 0.5) * 90;
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 2, 6), trunkMat);
+      trunk.position.y = 1;
+      const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.6, 4.5, 7), leafMat);
+      leaves.position.y = 4;
+      tree.add(trunk, leaves);
+      tree.position.set(x, 0, z);
+      tree.scale.setScalar(0.8 + rand() * 0.8);
+      scene.add(tree);
+    }
+  }
+
+  function makePlayerMesh(color) {
+    const g = new THREE.Group();
+    g.rotation.order = 'YXZ';
+    const mat = new THREE.MeshLambertMaterial({ color });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 1.2, 8), mat);
+    body.position.y = 0.7;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8),
+      new THREE.MeshLambertMaterial({ color: 0xf1c27d }));
+    head.position.y = 1.55;
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.025, 6, 16, Math.PI),
+      new THREE.MeshLambertMaterial({ color: 0x5a3a1a }));
+    bow.rotation.set(0, Math.PI / 2, Math.PI / 2);
+    bow.position.set(0.35, 1.2, 0.4);
+    g.add(body, head, bow);
+    return g;
+  }
+
+  function makeArrowMesh() {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(arrowGeo[0], arrowMat), new THREE.Mesh(arrowGeo[1], tipMat));
+    scene.add(g);
+    return g;
+  }
+
+  /** Draws one frame. mode: 'live' (first person), 'replay' or 'orbit' (zoomed-out third person). */
+  function render(f, mode, orbitTime) {
+    f.p.forEach((q, i) => {
+      const m = playerMeshes[i], alive = q[3];
+      m.position.set(q[0], alive ? 0 : 0.3, q[1]);
+      m.rotation.y = BASE_YAW[i] + q[2];
+      m.rotation.x = alive ? 0 : -Math.PI / 2;     // fall over when hit
+      m.visible = !(mode === 'live' && i === me);
+    });
+
+    stamp++;
+    for (const r of f.r) {
+      let m = arrowMeshes.get(r[0]);
+      if (!m) { m = makeArrowMesh(); arrowMeshes.set(r[0], m); }
+      m.userData.stamp = stamp;
+      m.position.set(r[1], r[2], r[3]);
+      m.lookAt(r[1] + r[4], r[2] + r[5], r[3] + r[6]);
+      m.scale.setScalar(mode === 'live' ? 1 : 2.5);   // bigger arrows are easier to follow in the replay
+    }
+    for (const [id, m] of arrowMeshes) {
+      if (m.userData.stamp !== stamp) { scene.remove(m); arrowMeshes.delete(id); }
+    }
+
+    if (mode === 'live') {
+      const pl = players[me], d = aimDir(me, pl.a, pl.p);
+      camera.fov = lerp(70, 55, localDraw());       // slight zoom while drawing
+      camera.updateProjectionMatrix();
+      camera.position.set(pl.x, CFG.EYE, pl.z);
+      camera.lookAt(pl.x + d[0], CFG.EYE + d[1], pl.z + d[2]);
+    } else {
+      const ang = orbitTime * 0.25;
+      camera.fov = 60;
+      camera.updateProjectionMatrix();
+      camera.position.set(Math.cos(ang) * 34, 13, Math.sin(ang) * 34);
+      camera.lookAt(0, 1.5, 0);
+    }
+    renderer.render(scene, camera);
+  }
+
+  return { init, render, get canvas() { return renderer.domElement; } };
+})();
+
+/* =====================================================================
+   INPUT (touch buttons, drag-to-aim, keyboard for desktop testing)
+   ===================================================================== */
+let holdStart = 0, cooldownUntil = 0, inputDirty = false;
+const held = { left: false, right: false };
+
+/** 0..1 draw amount as the local player sees it (mirrors the host's rules). */
+function localDraw() {
+  if (!localInput.d) return 0;
+  const t = (performance.now() - Math.max(holdStart, cooldownUntil)) / 1000;
+  return clamp(t / CFG.DRAW_TIME, 0, 1);
+}
+
+function setFire(on) {
+  const now = performance.now();
+  if (on) {
+    if (phase !== 'play' || localInput.d) return;
+    localInput.d = true;
+    holdStart = now;
+  } else {
+    if (!localInput.d) return;
+    localInput.d = false;
+    if ((now - Math.max(holdStart, cooldownUntil)) / 1000 >= CFG.MIN_DRAW) {
+      cooldownUntil = now + CFG.COOLDOWN * 1000;
+    }
+  }
+  $('fire').classList.toggle('on', localInput.d);
+  inputDirty = true;
+}
+
+function refreshMove() {
+  localInput.m = (held.right ? 1 : 0) - (held.left ? 1 : 0);   // +1 = screen right
+  $('left').classList.toggle('on', held.left);
+  $('right').classList.toggle('on', held.right);
+  inputDirty = true;
+}
+
+function applyAim(dx, dy) {
+  localInput.a = clamp(localInput.a - dx * CFG.AIM_SENSITIVITY, -CFG.AIM_LIMIT, CFG.AIM_LIMIT);
+  localInput.p = clamp(localInput.p - dy * CFG.AIM_SENSITIVITY, -0.25, 0.6);
+}
+
+/** Tracks one finger on a button; optional onMove lets a finger aim while it holds the button. */
+function bindHold(el, onDown, onUp, onMove) {
+  let id = null, lx = 0, ly = 0;
+  el.addEventListener('pointerdown', e => {
+    if (id !== null) return;
+    id = e.pointerId; lx = e.clientX; ly = e.clientY;
+    el.setPointerCapture(id);
+    onDown();
+  });
+  el.addEventListener('pointermove', e => {
+    if (e.pointerId !== id || !onMove) return;
+    onMove(e.clientX - lx, e.clientY - ly);
+    lx = e.clientX; ly = e.clientY;
+  });
+  const end = e => { if (e.pointerId === id) { id = null; onUp(); } };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+}
+
+function bindInput() {
+  bindHold(Views_canvas(), () => {}, () => {}, applyAim);
+  bindHold($('fire'), () => setFire(true), () => setFire(false), applyAim);
+  bindHold($('left'), () => { held.left = true; refreshMove(); }, () => { held.left = false; refreshMove(); });
+  bindHold($('right'), () => { held.right = true; refreshMove(); }, () => { held.right = false; refreshMove(); });
+
+  const keyMap = { KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right' };
+  window.addEventListener('keydown', e => {
+    if (e.repeat) return;
+    if (keyMap[e.code]) { held[keyMap[e.code]] = true; refreshMove(); }
+    if (e.code === 'Space') setFire(true);
+  });
+  window.addEventListener('keyup', e => {
+    if (keyMap[e.code]) { held[keyMap[e.code]] = false; refreshMove(); }
+    if (e.code === 'Space') setFire(false);
+  });
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+}
+function Views_canvas() { return View.canvas; }
+
+/* =====================================================================
+   NETWORKING (PeerJS) - kept separate from gameplay code
+   ===================================================================== */
+const Net = {
+  peer: null, conn: null,
+
+  send(msg) { if (this.conn && this.conn.open) this.conn.send(msg); },
+
+  reset() {
+    const c = this.conn, p = this.peer;
+    this.conn = this.peer = null;          // clear first so close handlers know this was intentional
+    if (c) c.close();
+    if (p) p.destroy();
+  },
+
+  host() {
+    this.reset();
+    isHost = true;
+    soloMode = false;
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no look-alike characters
+    let code = '';
+    for (let i = 0; i < 4; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    this.peer = new Peer(PEER_PREFIX + code);
+    this.peer.on('open', () => setStatus('Room code: ' + code + '\nWaiting for opponent...'));
+    this.peer.on('connection', c => {
+      if (this.conn) { c.close(); return; }                // only one opponent allowed
+      this.bind(c);
+    });
+    this.peer.on('error', e => {
+      if (e.type === 'unavailable-id') this.host();        // code collision: try another
+      else setStatus('Network error: ' + e.type);
+    });
+  },
+
+  join(code) {
+    this.reset();
+    isHost = false;
+    soloMode = false;
+    this.peer = new Peer();
+    this.peer.on('open', () => {
+      setStatus('Connecting...');
+      this.bind(this.peer.connect(PEER_PREFIX + code, { reliable: true }));
+      setTimeout(() => { if (this.conn && !this.conn.open) setStatus('Could not connect. Check the code.'); }, 10000);
+    });
+    this.peer.on('error', e => setStatus(e.type === 'peer-unavailable' ? 'Room not found.' : 'Network error: ' + e.type));
+  },
+
+  bind(c) {
+    this.conn = c;
+    const opened = () => { setNetLabel(true); startMatch(); };
+    if (c.open) opened(); else c.on('open', opened);
+    c.on('data', onNetMessage);
+    c.on('close', () => { if (this.conn === c) onDisconnected(); });
+    c.on('error', () => { if (this.conn === c) onDisconnected(); });
+  }
+};
+
+/** Validates and applies every incoming message. Never trust the other side's data. */
+function onNetMessage(m) {
+  if (!m || typeof m !== 'object') return;
+  if (isHost) {
+    if (m.t === 'in' && allFinite([m.a, m.p, m.m])) {
+      remoteInput.a = clamp(m.a, -CFG.AIM_LIMIT, CFG.AIM_LIMIT);
+      remoteInput.p = clamp(m.p, -0.25, 0.6);
+      remoteInput.m = Math.sign(m.m);
+      remoteInput.d = m.d === true;
+    }
+    return;
+  }
+  const validIdx = v => v === 0 || v === 1;
+  if (m.t === 's' && phase === 'play') {
+    const ok = Array.isArray(m.p) && m.p.length === 2 && m.p.every(q => allFinite(q) && q.length === 5) &&
+               Array.isArray(m.r) && m.r.length < 60 && m.r.every(r => allFinite(r) && r.length === 7);
+    if (ok) applySnapshot(m);
+  } else if (m.t === 'hit' && phase === 'play' && validIdx(m.v) && allFinite(m.s) && m.s.length === 2) {
+    scores = m.s.slice();
+    players[m.v].alive = false;
+    beginReplay(m.v, m.over === true);
+  } else if (m.t === 'start' && allFinite(m.s) && m.s.length === 2) {
+    scores = m.s.slice();
+    resetRound();
+  }
+}
+
+function startMatch() {
+  me = isHost ? 0 : 1;
+  scores = [0, 0];
+  $('menu').style.display = 'none';
+  $('hud').style.display = 'block';
+  resetRound();                                 // guest also starts locally; host's 'start' keeps it in sync
+  if (isHost) Net.send({ t: 'start', s: scores });
+}
+
+/** Leaves any match (solo or online) and shows the menu again. */
+function quitToMenu(message) {
+  clearTimeout(roundTimer);
+  soloMode = false;
+  phase = 'menu';
+  banner('', 0);
+  $('tag').style.display = 'none';
+  setFire(false);
+  held.left = held.right = false;
+  refreshMove();
+  $('hud').style.display = 'none';
+  $('menu').style.display = 'flex';
+  setNetLabel(false);
+  setStatus(message || '');
+  Net.reset();
+}
+
+function onDisconnected() { quitToMenu('Opponent disconnected.'); }
+
+function startSolo() {
+  Net.reset();
+  isHost = true;          // the local device runs the simulation, same as an online host
+  soloMode = true;
+  AI.setLevel($('aiLevel').value);
+  startMatch();
+  $('net').textContent = 'Solo vs AI';
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+let bannerTimer = null;
+function banner(text, ms) {
+  const b = $('banner');
+  b.textContent = text;
+  b.style.display = text ? 'block' : 'none';
+  clearTimeout(bannerTimer);
+  if (text && ms) bannerTimer = setTimeout(() => { b.style.display = 'none'; }, ms);
+}
+function setStatus(text) { $('status').textContent = text; }
+function setNetLabel(on) {
+  $('net').innerHTML = '<span style="color:' + (on ? '#6f6' : '#f66') + '">&#9679;</span> ' + (on ? 'connected' : 'offline');
+}
+function updateScore() { $('score').textContent = scores[me] + ' : ' + scores[1 - me]; }
+
+function bindMenu() {
+  $('soloBtn').onclick = startSolo;
+  $('quit').addEventListener('click', () => quitToMenu(''));
+  $('hostBtn').onclick = () => { setStatus('Starting...'); Net.host(); };
+  $('joinBtn').onclick = () => {
+    const code = $('codeIn').value.trim().toUpperCase();
+    if (code.length !== 4) { setStatus('Enter the 4-character code.'); return; }
+    Net.join(code);
+  };
+}
+
+/* =====================================================================
+   MAIN LOOP
+   ===================================================================== */
+let lastTime = performance.now(), inputTimer = 0, snapTimer = 0;
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  if (phase === 'play') {
+    if (isHost) {
+      if (soloMode) AI.update(dt);
+      simStep(dt);
+      stepArrows(dt, true);
+      snapTimer += dt;
+      if (!soloMode && phase === 'play' && snapTimer >= 1 / CFG.SNAPSHOT_HZ) { snapTimer = 0; Net.send(buildSnapshot()); }
+    } else {
+      guestStep(dt);
+      stepArrows(dt, false);
+      inputTimer += dt;
+      if (inputTimer >= 1 / CFG.INPUT_HZ || inputDirty) {
+        inputTimer = 0; inputDirty = false;
+        Net.send({ t: 'in', a: round2(localInput.a), p: round2(localInput.p), m: localInput.m, d: localInput.d });
+      }
+    }
+    if (phase === 'play') {                       // a hit this frame switches to replay already
+      const f = makeFrame();
+      recordFrame(f);
+      View.render(f, 'live');
+      $('barFill').style.transform = 'scaleX(' + localDraw() + ')';
+    }
+  } else if (phase === 'replay') {
+    $('barFill').style.transform = 'scaleX(0)';
+    updateReplay(dt);
+  } else {
+    if (!players.length) resetRound(), phase = 'menu';
+    View.render(makeFrame(), 'orbit', now / 1000);   // slow camera orbit behind the menu
+  }
+}
+
+View.init();
+bindInput();
+bindMenu();
+setNetLabel(false);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
