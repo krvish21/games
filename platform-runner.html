@@ -18,7 +18,7 @@ addEventListener('resize',rs);rs();
 let GOAL=650;const TIME=65;
 let S,running=false,last=0;
 const ACH=[{id:'first',n:'First Train',d:'Complete level 1'},{id:'chai10',n:'Chai Lover',d:'Collect 10 chai'},{id:'tix30',n:'Ticket Master',d:'Collect 30 tickets'},{id:'clean',n:'Untouchable',d:'Finish a level without a hit'},{id:'fast',n:'Speed Demon',d:'Finish a level with 25s left'},{id:'lvl3',n:'Frequent Traveller',d:'Reach level 3'},{id:'lvl5',n:'Rail Legend',d:'Reach level 5'},{id:'pow3',n:'Power Player',d:'Use power-ups 3 times'},{id:'sharp',n:'Crowd Buster',d:'Destroy 5 obstacles'},{id:'s1000',n:'Four Digits',d:'Score 1000'}];
-const PW={ghost:{i:'\u{1F47B}',cd:12,act:3,d:'Ghost: walk through obstacles for 3s'},bomb:{i:'\u{1F4A3}',cd:14,act:0,d:'Bomb: blast clears the crowd ahead'},gun:{i:'\u{1F52B}',cd:4,act:0,d:'Blaster: shoots the obstacle in your lane'},slow:{i:'\u23F3',cd:14,act:3.5,d:'Slow-mo: the crowd slows for 3.5s'},shield:{i:'\u{1F6E1}',cd:12,act:6,d:'Shield: absorbs one hit for 6s'}};
+const PW={ghost:{i:'\u{1F47B}',cd:12,act:3,d:'Ghost: walk through obstacles for 3s'},bomb:{i:'\u{1F4A3}',cd:14,act:0,d:'Bomb: blast clears the crowd ahead'},gun:{i:'\u{1F52B}',cd:0.4,act:0,d:'Blaster: rapid-fire at the obstacle in your lane'},slow:{i:'\u23F3',cd:14,act:3.5,d:'Slow-mo: the crowd slows for 3.5s'},shield:{i:'\u{1F6E1}',cd:12,act:6,d:'Shield: absorbs one hit for 6s'}};
 let SV={a:{},s:{}};try{const q=JSON.parse(localStorage.getItem('pd_save'));if(q&&q.a&&q.s)SV=q}catch(e){}
 const toastQ=[];let curT=null;
 function save(){try{localStorage.setItem('pd_save',JSON.stringify(SV))}catch(e){}}
